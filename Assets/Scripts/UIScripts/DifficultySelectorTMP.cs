@@ -120,9 +120,9 @@ public class DifficultySelectorTMP : MonoBehaviour
     private void UpdateButtonInteractivity()
     {
         // Disable the left button if we're at the first difficulty
-        leftButton.interactable = currentIndex > 0;
+        leftButton.gameObject.SetActive(currentIndex > 0);
 
         // Disable the right button if we're at the last difficulty
-        rightButton.interactable = currentIndex < difficulties.Count - 1;
+        rightButton.gameObject.SetActive(currentIndex < difficulties.Count - 1); 
     }
 }
