@@ -48,6 +48,7 @@ public class DifficultySelectorTMP : MonoBehaviour
         {
             currentIndex++;
             SlideTransition(isToRight: true);
+            GameManager.Instance.currentDifficulty = currentIndex;
         }
     }
 
@@ -57,6 +58,7 @@ public class DifficultySelectorTMP : MonoBehaviour
         {
             currentIndex--;
             SlideTransition(isToRight: false);
+            GameManager.Instance.currentDifficulty = currentIndex;
         }
     }
 
