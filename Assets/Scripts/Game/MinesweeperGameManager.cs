@@ -55,6 +55,17 @@ public class MinesweeperGameManager : MonoBehaviour
     //mine positions
     private List<Vector2Int> minePositions = new List<Vector2Int>();
 
+
+    // New camera boundary parameters
+    [SerializeField] private float bounceSpeed = 5f; // Speed of elastic bounce-back
+    [SerializeField] private float maxOvershoot = 2f; // Maximum allowed overshoot beyond bounds
+
+    // Camera boundary variables
+    private Vector2 minBoundary;
+    private Vector2 maxBoundary;
+    private bool isBouncing = false;
+    private Vector3 targetPosition;
+
     void Start()
     {
         // Get reference to main camera if not assigned
@@ -83,6 +94,27 @@ public class MinesweeperGameManager : MonoBehaviour
         {
             HandleMouseInput();
         }
+
+        // Handle elastic bounce-back if needed
+        if (isBouncing)
+        {
+            gameCamera.transform.position = Vector3.Lerp(
+                gameCamera.transform.position,
+                targetPosition,
+                Time.deltaTime * bounceSpeed
+            );
+
+            // Stop bouncing when close enough to target
+            if (Vector3.Distance(gameCamera.transform.position, targetPosition) < 0.01f)
+            {
+                isBouncing = false;
+            }
+        }
+        else
+        {
+            // Check if camera is outside bounds and needs correction
+            EnforceCameraBounds();
+        }
     }
 
     private void HandleMouseInput()
@@ -96,6 +128,9 @@ public class MinesweeperGameManager : MonoBehaviour
         {
             float newZoom = gameCamera.orthographicSize - scrollDelta * mouseZoomSpeed * 10;
             gameCamera.orthographicSize = Mathf.Clamp(newZoom, minZoom, maxZoom);
+
+            // Recalculate bounds after zoom change
+            CalculateCameraBounds();
         }
 
         // Middle mouse button for panning
@@ -109,13 +144,20 @@ public class MinesweeperGameManager : MonoBehaviour
             if (isMousePanning)
             {
                 Vector3 direction = mousePanStart - gameCamera.ScreenToWorldPoint(Input.mousePosition);
-                gameCamera.transform.position += direction * mousePanSpeed * Time.deltaTime;
+                Vector3 newPosition = gameCamera.transform.position + direction * mousePanSpeed * Time.deltaTime;
+
+                // Allow limited overshoot beyond bounds
+                newPosition = LimitWithinBoundsWithOvershoot(newPosition);
+                gameCamera.transform.position = newPosition;
+
                 mousePanStart = gameCamera.ScreenToWorldPoint(Input.mousePosition);
             }
         }
         else if (Input.GetMouseButtonUp(2)) // Middle mouse released
         {
             isMousePanning = false;
+            // When released, start the elastic bounce-back if out of bounds
+            EnforceCameraBounds();
         }
 
         // Alternative panning with right mouse button for testing
@@ -129,13 +171,20 @@ public class MinesweeperGameManager : MonoBehaviour
             if (isMousePanning)
             {
                 Vector3 direction = mousePanStart - gameCamera.ScreenToWorldPoint(Input.mousePosition);
-                gameCamera.transform.position += direction * mousePanSpeed * Time.deltaTime;
+                Vector3 newPosition = gameCamera.transform.position + direction * mousePanSpeed * Time.deltaTime;
+
+                // Allow limited overshoot beyond bounds
+                newPosition = LimitWithinBoundsWithOvershoot(newPosition);
+                gameCamera.transform.position = newPosition;
+
                 mousePanStart = gameCamera.ScreenToWorldPoint(Input.mousePosition);
             }
         }
         else if (Input.GetMouseButtonUp(1)) // Right mouse released
         {
             isMousePanning = false;
+            // When released, start the elastic bounce-back if out of bounds
+            EnforceCameraBounds();
         }
     }
 
@@ -165,7 +214,16 @@ public class MinesweeperGameManager : MonoBehaviour
                 float zoomDelta = touchZoomStart.magnitude / touchZoomCurrent.magnitude;
 
                 // Apply zoom
-                gameCamera.orthographicSize = Mathf.Clamp(startZoom * zoomDelta, minZoom, maxZoom);
+                float newZoom = Mathf.Clamp(startZoom * zoomDelta, minZoom, maxZoom);
+                gameCamera.orthographicSize = newZoom;
+
+                // Recalculate bounds after zoom change
+                CalculateCameraBounds();
+            }
+            else if (touchZero.phase == TouchPhase.Ended || touchOne.phase == TouchPhase.Ended)
+            {
+                // When zooming ends, check if we need to bounce back
+                EnforceCameraBounds();
             }
         }
         // Handle single touch for panning
@@ -192,7 +250,11 @@ public class MinesweeperGameManager : MonoBehaviour
                 if (touch.deltaPosition.magnitude > 5)
                 {
                     Vector3 direction = touchStart - gameCamera.ScreenToWorldPoint(touch.position);
-                    gameCamera.transform.position += direction * panSpeed * Time.deltaTime;
+                    Vector3 newPosition = gameCamera.transform.position + direction * panSpeed * Time.deltaTime;
+
+                    // Allow limited overshoot beyond bounds
+                    newPosition = LimitWithinBoundsWithOvershoot(newPosition);
+                    gameCamera.transform.position = newPosition;
 
                     // Update start position for smoother movement
                     touchStart = gameCamera.ScreenToWorldPoint(touch.position);
@@ -202,6 +264,8 @@ public class MinesweeperGameManager : MonoBehaviour
             else if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
             {
                 isPanning = false;
+                // When released, start the elastic bounce-back if out of bounds
+                EnforceCameraBounds();
             }
         }
         else
@@ -230,11 +294,56 @@ public class MinesweeperGameManager : MonoBehaviour
 
         // Reset camera position and zoom to fit board with difficulty-specific settings
         ResetCameraView(difficulty);
-
+        CalculateCameraBounds();
         currentState = GameState.Playing;
         firstClick = true;
     }
+    private void CalculateCameraBounds()
+    {
+        // Calculate board dimensions
+        float boardWidth = width * (tileSize + spacing) - spacing;
+        float boardHeight = height * (tileSize + spacing) - spacing;
 
+        // Set boundaries to exactly match the board edges
+        float horizontalBound = boardWidth / 2;
+        float verticalBound = boardHeight / 2;
+
+        minBoundary = new Vector2(-horizontalBound, -verticalBound);
+        maxBoundary = new Vector2(horizontalBound, verticalBound);
+    }
+
+    private Vector3 LimitWithinBoundsWithOvershoot(Vector3 position)
+    {
+        // Allow a limited overshoot beyond the boundaries
+        float x = Mathf.Clamp(position.x, minBoundary.x - maxOvershoot, maxBoundary.x + maxOvershoot);
+        float y = Mathf.Clamp(position.y, minBoundary.y - maxOvershoot, maxBoundary.y + maxOvershoot);
+
+        return new Vector3(x, y, position.z);
+    }
+
+    private void EnforceCameraBounds()
+    {
+        Vector3 currentPosition = gameCamera.transform.position;
+        bool outOfBounds = false;
+
+        // Check if the camera is outside the allowed boundaries
+        if (currentPosition.x < minBoundary.x || currentPosition.x > maxBoundary.x ||
+            currentPosition.y < minBoundary.y || currentPosition.y > maxBoundary.y)
+        {
+            // Calculate the target position within bounds
+            float targetX = Mathf.Clamp(currentPosition.x, minBoundary.x, maxBoundary.x);
+            float targetY = Mathf.Clamp(currentPosition.y, minBoundary.y, maxBoundary.y);
+
+            targetPosition = new Vector3(targetX, targetY, currentPosition.z);
+            isBouncing = true;
+            outOfBounds = true;
+        }
+
+        if (!outOfBounds)
+        {
+            isBouncing = false;
+        }
+    }
     private void ResetCameraView(int difficulty)
     {
         if (gameCamera != null)
@@ -255,6 +364,7 @@ public class MinesweeperGameManager : MonoBehaviour
 
             // Apply zoom settings
             gameCamera.orthographicSize = Mathf.Clamp(desiredZoom, minZoom, maxZoom);
+            CalculateCameraBounds();
         }
     }
 

@@ -201,8 +201,10 @@ MonoBehaviour:
   - 24
   zoomSpeed: 0.5
   mouseZoomSpeed: 0.5
-  panSpeed: 10
-  mousePanSpeed: 10
+  panSpeed: 25
+  mousePanSpeed: 25
+  bounceSpeed: 5
+  maxOvershoot: 5
 --- !u!4 &245367727
 Transform:
   m_ObjectHideFlags: 0
