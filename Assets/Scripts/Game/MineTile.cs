@@ -158,6 +158,39 @@ public class MineTile : MonoBehaviour
             }
 
             // If no adjacent mines, flood fill
+            /*if (adjacentMines == 0)
+            {
+                Debug.Log($"Reveal() calling FloodFill on tile ({x},{y})");
+                gameManager.FloodFill(x, y);
+            }*/
+        }
+    }
+
+    // Add this method to your MineTile class to fix flood fill behavior
+    public void ForceReveal()
+    {
+        // This method is similar to Reveal() but skips the flag check
+        if (isRevealed) return;
+
+        isRevealed = true;
+
+        if (isMine)
+        {
+            spriteRenderer.sprite = mineSprite;
+            if (!gameManager.IsGameOver())
+            {
+                gameManager.OnMineRevealed();
+            }
+        }
+        else
+        {
+            // Use the correct number sprite based on adjacent mines
+            if (adjacentMines >= 0 && adjacentMines < numberSprites.Length)
+            {
+                spriteRenderer.sprite = numberSprites[adjacentMines];
+            }
+
+            // If no adjacent mines, flood fill
             if (adjacentMines == 0)
             {
                 gameManager.FloodFill(x, y);

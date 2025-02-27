@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using UnityEngine;
 
 public class MinesweeperGameManager : MonoBehaviour
@@ -430,9 +431,10 @@ public class MinesweeperGameManager : MonoBehaviour
     // Called when a tile is clicked
     public void OnTileClicked(int x, int y)
     {
-        if (currentState != GameState.Playing || isPanning || isMousePanning) return;
+        // Don’t do anything if game is over or panning
+        if (currentState != GameState.Playing || IsPanning()) return;
 
-        // Handle first click
+        // If first click, place mines, etc.
         if (firstClick)
         {
             GenerateMines(x, y);
@@ -440,62 +442,296 @@ public class MinesweeperGameManager : MonoBehaviour
             firstClick = false;
         }
 
-        RevealTile(x, y);
+        // Instead of tile.Reveal(), just do one BFS call:
+        if (!grid[x, y].IsFlagged() && !grid[x, y].IsRevealed())
+        {
+            FloodFill(x, y);  // The BFS will reveal tile (x,y) and all connected zeros
+        }
+
         CheckWinCondition();
     }
 
     private void GenerateMines(int safeX, int safeY)
     {
         minePositions.Clear();
-        // 1) Determine which positions are safe around first click
-        List<Vector2Int> safeZone = new List<Vector2Int>();
-        for (int xOffset = -1; xOffset <= 1; xOffset++)
+        bool validPuzzle = false;
+        int attempts = 0;
+        const int MAX_ATTEMPTS = 50; // Limit regeneration attempts
+
+        while (!validPuzzle && attempts < MAX_ATTEMPTS)
         {
-            for (int yOffset = -1; yOffset <= 1; yOffset++)
+            attempts++;
+
+            // 1) Determine safe zone around first click
+            List<Vector2Int> safeZone = new List<Vector2Int>();
+            for (int xOffset = -1; xOffset <= 1; xOffset++)
             {
-                int newX = safeX + xOffset;
-                int newY = safeY + yOffset;
-                if (IsValidCoordinate(newX, newY))
+                for (int yOffset = -1; yOffset <= 1; yOffset++)
                 {
-                    safeZone.Add(new Vector2Int(newX, newY));
+                    int newX = safeX + xOffset;
+                    int newY = safeY + yOffset;
+                    if (IsValidCoordinate(newX, newY))
+                    {
+                        safeZone.Add(new Vector2Int(newX, newY));
+                    }
                 }
+            }
+
+            // 2) Clear any existing mines
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    grid[x, y].SetMine(false);
+                }
+            }
+
+            // 3) Build a list of all possible mine positions except the safe zone
+            List<Vector2Int> possiblePositions = new List<Vector2Int>();
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    Vector2Int pos = new Vector2Int(x, y);
+                    if (!safeZone.Contains(pos))
+                    {
+                        possiblePositions.Add(pos);
+                    }
+                }
+            }
+
+            // 4) Shuffle the list
+            for (int i = 0; i < possiblePositions.Count; i++)
+            {
+                int randomIndex = Random.Range(i, possiblePositions.Count);
+                Vector2Int temp = possiblePositions[i];
+                possiblePositions[i] = possiblePositions[randomIndex];
+                possiblePositions[randomIndex] = temp;
+            }
+
+            // 5) Place mines
+            minePositions.Clear();
+            int minesToPlace = Mathf.Min(mineCount, possiblePositions.Count);
+            for (int i = 0; i < minesToPlace; i++)
+            {
+                Vector2Int pos = possiblePositions[i];
+                grid[pos.x, pos.y].SetMine(true);
+                minePositions.Add(pos);
+            }
+
+            // 6) Calculate adjacent mines for all tiles
+            CalculateAdjacentMines();
+
+            // 7) Check if the puzzle is solvable
+            validPuzzle = IsPuzzleSolvable(safeX, safeY);
+
+            if (validPuzzle)
+            {
+                Debug.Log("Generated a solvable puzzle in " + attempts + " attempts");
             }
         }
 
-        // 2) Build a list of all possible mine positions except the safe zone
-        List<Vector2Int> possiblePositions = new List<Vector2Int>();
-        for (int x = 0; x < width; x++)
+        if (!validPuzzle)
         {
-            for (int y = 0; y < height; y++)
-            {
-                Vector2Int pos = new Vector2Int(x, y);
-                if (!safeZone.Contains(pos))
-                {
-                    possiblePositions.Add(pos);
-                }
-            }
-        }
-
-        // 3) Shuffle the list
-        for (int i = 0; i < possiblePositions.Count; i++)
-        {
-            int randomIndex = Random.Range(i, possiblePositions.Count);
-            Vector2Int temp = possiblePositions[i];
-            possiblePositions[i] = possiblePositions[randomIndex];
-            possiblePositions[randomIndex] = temp;
-        }
-
-        // 4) Place mines
-        int minesToPlace = Mathf.Min(mineCount, possiblePositions.Count);
-        for (int i = 0; i < minesToPlace; i++)
-        {
-            Vector2Int pos = possiblePositions[i];
-            grid[pos.x, pos.y].SetMine(true);
-
-            // RECORD the mine position in our list (NEW)
-            minePositions.Add(pos);
+            Debug.LogWarning("Failed to generate a perfectly solvable puzzle after " + MAX_ATTEMPTS + " attempts. Using last generation.");
         }
     }
+
+    private bool IsPuzzleSolvable(int startX, int startY)
+    {
+        // Create a simulation grid to track the solver's knowledge
+        bool[,] revealed = new bool[width, height];
+        bool[,] flagged = new bool[width, height];
+        bool[,] knownSafe = new bool[width, height];
+
+        // Start by revealing the first cell
+        List<Vector2Int> toReveal = new List<Vector2Int>();
+        toReveal.Add(new Vector2Int(startX, startY));
+
+        while (toReveal.Count > 0)
+        {
+            Vector2Int pos = toReveal[0];
+            toReveal.RemoveAt(0);
+
+            if (revealed[pos.x, pos.y] || flagged[pos.x, pos.y])
+                continue;
+
+            // Reveal this cell
+            revealed[pos.x, pos.y] = true;
+
+            // If it's a mine, that's not allowed in our simulation
+            if (grid[pos.x, pos.y].IsMine())
+                return false;
+
+            // If it's a 0, add all neighbors to reveal queue
+            if (grid[pos.x, pos.y].GetAdjacentMines() == 0)
+            {
+                for (int xOffset = -1; xOffset <= 1; xOffset++)
+                {
+                    for (int yOffset = -1; yOffset <= 1; yOffset++)
+                    {
+                        int newX = pos.x + xOffset;
+                        int newY = pos.y + yOffset;
+
+                        if (IsValidCoordinate(newX, newY) && !revealed[newX, newY] && !flagged[newX, newY])
+                        {
+                            toReveal.Add(new Vector2Int(newX, newY));
+                            knownSafe[newX, newY] = true;
+                        }
+                    }
+                }
+            }
+
+            // After each reveal, find certain moves and continue
+            while (true)
+            {
+                bool progress = false;
+
+                // For each revealed cell, check if we can determine mines around it
+                for (int x = 0; x < width; x++)
+                {
+                    for (int y = 0; y < height; y++)
+                    {
+                        if (!revealed[x, y]) continue;
+
+                        int adjacentCount = grid[x, y].GetAdjacentMines();
+                        if (adjacentCount == 0) continue;
+
+                        // Count adjacent flags and unrevealed cells
+                        int adjacentFlags = 0;
+                        List<Vector2Int> unrevealed = new List<Vector2Int>();
+
+                        for (int xOffset = -1; xOffset <= 1; xOffset++)
+                        {
+                            for (int yOffset = -1; yOffset <= 1; yOffset++)
+                            {
+                                if (xOffset == 0 && yOffset == 0) continue;
+
+                                int newX = x + xOffset;
+                                int newY = y + yOffset;
+
+                                if (IsValidCoordinate(newX, newY))
+                                {
+                                    if (flagged[newX, newY])
+                                        adjacentFlags++;
+                                    else if (!revealed[newX, newY])
+                                        unrevealed.Add(new Vector2Int(newX, newY));
+                                }
+                            }
+                        }
+
+                        // If number of flags equals adjacent mines and there are still unrevealed cells,
+                        // we can safely reveal all unrevealed
+                        if (adjacentFlags == adjacentCount && unrevealed.Count > 0)
+                        {
+                            foreach (Vector2Int cell in unrevealed)
+                            {
+                                if (!knownSafe[cell.x, cell.y])
+                                {
+                                    toReveal.Add(cell);
+                                    knownSafe[cell.x, cell.y] = true;
+                                    progress = true;
+                                }
+                            }
+                        }
+
+                        // If number of unrevealed equals remaining mines (adjacent mines - flags)
+                        // we can flag all unrevealed
+                        if (unrevealed.Count == adjacentCount - adjacentFlags)
+                        {
+                            foreach (Vector2Int cell in unrevealed)
+                            {
+                                if (!flagged[cell.x, cell.y])
+                                {
+                                    flagged[cell.x, cell.y] = true;
+                                    progress = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // If no progress was made in this iteration, stop
+                if (!progress) break;
+            }
+
+            // Check if all non-mine cells can be revealed
+            int totalRevealed = 0;
+            int totalFlagged = 0;
+
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    if (revealed[x, y]) totalRevealed++;
+                    if (flagged[x, y]) totalFlagged++;
+                }
+            }
+
+            // If we've revealed all non-mine cells or if there are unrevealed cells that 
+            // aren't in the reveal queue and not flagged, we're blocked
+            if (totalRevealed == (width * height - mineCount))
+            {
+                return true; // Puzzle is solved!
+            }
+
+            // If no more cells to reveal, but puzzle isn't solved, we must guess
+            if (toReveal.Count == 0)
+            {
+                // Check if any safe moves are available but not in the queue
+                bool safeMoveAvailable = false;
+                for (int x = 0; x < width; x++)
+                {
+                    for (int y = 0; y < height; y++)
+                    {
+                        if (knownSafe[x, y] && !revealed[x, y] && !flagged[x, y])
+                        {
+                            toReveal.Add(new Vector2Int(x, y));
+                            safeMoveAvailable = true;
+                        }
+                    }
+                }
+
+                if (!safeMoveAvailable)
+                    return false; // We would have to guess, so the puzzle is not deterministic
+            }
+        }
+
+        return true;
+    }
+
+    // Add this method to your MineTile class to fix flood fill behavior
+    /*public void ForceReveal()
+    {
+        // This method is similar to Reveal() but skips the flag check
+        if (isRevealed) return;
+
+        isRevealed = true;
+
+        if (isMine)
+        {
+            spriteRenderer.sprite = mineSprite;
+            if (!gameManager.IsGameOver())
+            {
+                gameManager.OnMineRevealed();
+            }
+        }
+        else
+        {
+            // Use the correct number sprite based on adjacent mines
+            if (adjacentMines >= 0 && adjacentMines < numberSprites.Length)
+            {
+                spriteRenderer.sprite = numberSprites[adjacentMines];
+            }
+
+            // If no adjacent mines, flood fill
+            if (adjacentMines == 0)
+            {
+                gameManager.FloodFill(x, y);
+            }
+        }
+    }*/
+
 
     private void CalculateAdjacentMines()
     {
@@ -548,21 +784,47 @@ public class MinesweeperGameManager : MonoBehaviour
     }
 
     // Flood fill algorithm to reveal empty connected tiles
-    public void FloodFill(int x, int y)
+    public void FloodFill(int startX, int startY)
     {
-        for (int xOffset = -1; xOffset <= 1; xOffset++)
-        {
-            for (int yOffset = -1; yOffset <= 1; yOffset++)
-            {
-                int newX = x + xOffset;
-                int newY = y + yOffset;
+        // Typical BFS or DFS approach
+        Queue<Vector2Int> tilesToCheck = new Queue<Vector2Int>();
+        tilesToCheck.Enqueue(new Vector2Int(startX, startY));
 
-                if (IsValidCoordinate(newX, newY))
+        while (tilesToCheck.Count > 0)
+        {
+            Vector2Int pos = tilesToCheck.Dequeue();
+            int x = pos.x;
+            int y = pos.y;
+
+            // 1) Make sure in bounds
+            if (!IsValidCoordinate(x, y))
+                continue;
+
+            MineTile tile = grid[x, y];
+
+            // 2) Skip if flagged or already revealed
+            if (tile.IsRevealed() || tile.IsFlagged())
+                continue;
+
+            // 3) Reveal this tile
+            tile.Reveal();  // This sets isRevealed = true and updates the sprite
+
+            // 4) If it's not a mine AND has 0 neighbors, add neighbors to queue
+            if (!tile.IsMine() && tile.GetAdjacentMines() == 0)
+            {
+                for (int dx = -1; dx <= 1; dx++)
                 {
-                    MineTile tile = grid[newX, newY];
-                    if (!tile.IsRevealed() && !tile.IsFlagged() && !tile.IsMine())
+                    for (int dy = -1; dy <= 1; dy++)
                     {
-                        RevealTile(newX, newY);
+                        if (dx == 0 && dy == 0) continue; // skip itself
+
+                        int nx = x + dx;
+                        int ny = y + dy;
+
+                        if (IsValidCoordinate(nx, ny))
+                        {
+                            tilesToCheck.Enqueue(new Vector2Int(nx, ny));
+                        }
                     }
                 }
             }
