@@ -173,7 +173,8 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      Gear--Streamline-Font-Awesome_0: -4591285318373647478
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
