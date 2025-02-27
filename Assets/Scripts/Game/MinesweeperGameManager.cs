@@ -166,6 +166,11 @@ public class MinesweeperGameManager : MonoBehaviour
         }
     }
 
+    public bool IsFirstClick()
+    {
+        return firstClick;
+    }
+
     private void HandleTouchInput()
     {
         if (currentState == GameState.GameOver || currentState == GameState.Win) return;
@@ -565,7 +570,7 @@ public class MinesweeperGameManager : MonoBehaviour
         currentState = GameState.GameOver;
         RevealAllMines();
         Debug.Log("Game Over!");
-        StartCoroutine(DelayedLoadScene());
+        //StartCoroutine(DelayedLoadScene());
     }
 
     private IEnumerator DelayedLoadScene()

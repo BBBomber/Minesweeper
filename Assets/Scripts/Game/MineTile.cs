@@ -130,9 +130,22 @@ public class MineTile : MonoBehaviour
     {
         if (isRevealed || gameManager.IsGameOver()) return;
 
+        // Prevent flagging before the first click
+        if (gameManager.IsFirstClick())
+        {
+            Debug.Log("Cannot flag before first click!");
+            return;
+        }
+
         isFlagged = !isFlagged;
         spriteRenderer.sprite = isFlagged ? flagSprite : defaultSprite;
         gameManager.OnTileFlagged(isFlagged);
+
+        // Debug log whether the flag is correct
+        if (isFlagged)
+        {
+            Debug.Log($"Flag placed at ({x}, {y}) - Correct: {isMine}");
+        }
     }
 
     public void RevealWithoutAnimation()
