@@ -46,6 +46,6 @@ public class StartButtonPress : MonoBehaviour
 
     private void OnBothValuesZero()
     {
-        Debug.Log("Outline effect distance is now zero.");
+        GameManager.Instance.LoadScene("GameScene");
     }
 }
