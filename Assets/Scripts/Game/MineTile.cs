@@ -135,7 +135,7 @@ public class MineTile : MonoBehaviour
         gameManager.OnTileFlagged(isFlagged);
     }
 
-    public void Reveal()
+    public void RevealWithoutAnimation()
     {
         if (isRevealed || isFlagged) return;
 
@@ -156,14 +156,20 @@ public class MineTile : MonoBehaviour
             {
                 spriteRenderer.sprite = numberSprites[adjacentMines];
             }
-
-            // If no adjacent mines, flood fill
-            /*if (adjacentMines == 0)
-            {
-                Debug.Log($"Reveal() calling FloodFill on tile ({x},{y})");
-                gameManager.FloodFill(x, y);
-            }*/
         }
+    }
+
+    // Modify the existing Reveal method to use animations
+    public void Reveal()
+    {
+        if (isRevealed || isFlagged) return;
+
+        // Use animation manager to handle the reveal animation
+        TileAnimationManager.Instance.AnimateTileReveal(
+            transform,
+            () => RevealWithoutAnimation(),
+            null
+        );
     }
 
     // Add this method to your MineTile class to fix flood fill behavior

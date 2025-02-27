@@ -362,10 +362,23 @@ public class MinesweeperGameManager : MonoBehaviour
 
         if (!grid[x, y].IsFlagged() && !grid[x, y].IsRevealed())
         {
-            FloodFill(x, y);
-        }
+            if (grid[x, y].GetAdjacentMines() == 0 && !grid[x, y].IsMine())
+            {
 
-        CheckWinCondition();
+                    FloodFillWithAnimation(x, y);
+               
+                
+            }
+            else
+            {
+                grid[x, y].Reveal();
+                if (!grid[x, y].IsMine())
+                {
+                    revealedCount++;
+                    CheckWinCondition();
+                }
+            }
+        }
     }
 
     private void GenerateMinesTatham(int safeX, int safeY)
@@ -421,6 +434,76 @@ public class MinesweeperGameManager : MonoBehaviour
         }
     }
 
+    public void FloodFillWithAnimation(int startX, int startY)
+    {
+        // First pass: collect tiles that need to be revealed in BFS order
+        Queue<Vector2Int> toCheck = new Queue<Vector2Int>();
+        HashSet<Vector2Int> visited = new HashSet<Vector2Int>();
+        List<MineTile> tilesToReveal = new List<MineTile>();
+
+        toCheck.Enqueue(new Vector2Int(startX, startY));
+        visited.Add(new Vector2Int(startX, startY));
+
+        while (toCheck.Count > 0)
+        {
+            Vector2Int pos = toCheck.Dequeue();
+            int x = pos.x;
+            int y = pos.y;
+            if (!IsValidCoord(x, y)) continue;
+
+            MineTile tile = grid[x, y];
+            if (tile.IsRevealed() || tile.IsFlagged()) continue;
+
+            // Add to our reveal list
+            tilesToReveal.Add(tile);
+
+            if (tile.GetAdjacentMines() == 0)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    for (int dy = -1; dy <= 1; dy++)
+                    {
+                        if (dx == 0 && dy == 0) continue;
+                        int nx = x + dx;
+                        int ny = y + dy;
+
+                        Vector2Int newPos = new Vector2Int(nx, ny);
+                        if (IsValidCoord(nx, ny) && !visited.Contains(newPos))
+                        {
+                            toCheck.Enqueue(newPos);
+                            visited.Add(newPos);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Second pass: animate the tiles
+        if (tilesToReveal.Count > 0)
+        {
+            List<Transform> tileTransforms = new List<Transform>();
+            List<System.Action> revealActions = new List<System.Action>();
+
+            foreach (MineTile tile in tilesToReveal)
+            {
+                tileTransforms.Add(tile.transform);
+                revealActions.Add(() => {
+                    if (!tile.IsMine())
+                    {
+                        revealedCount++;
+                    }
+                    tile.RevealWithoutAnimation();
+                });
+            }
+
+            TileAnimationManager.Instance.AnimateTileSequence(
+                tileTransforms,
+                revealActions,
+                () => CheckWinCondition()
+            );
+        }
+    }
+
     public void FloodFill(int startX, int startY)
     {
         Queue<Vector2Int> toCheck = new Queue<Vector2Int>();
@@ -471,6 +554,8 @@ public class MinesweeperGameManager : MonoBehaviour
         if (revealedCount == (width * height - mineCount))
         {
             currentState = GameState.Win;
+            //reveal the rest of the tiles
+            //do whatever
             Debug.Log("Game Won!");
         }
     }
@@ -480,8 +565,15 @@ public class MinesweeperGameManager : MonoBehaviour
         currentState = GameState.GameOver;
         RevealAllMines();
         Debug.Log("Game Over!");
-        //GameManager.Instance.LoadScene("HomePage");
+        StartCoroutine(DelayedLoadScene());
     }
+
+    private IEnumerator DelayedLoadScene()
+    {
+        yield return new WaitForSeconds(3f);
+        GameManager.Instance.LoadScene("HomePage");
+    }
+
 
     private void RevealAllMines()
     {
@@ -493,6 +585,8 @@ public class MinesweeperGameManager : MonoBehaviour
                 t.Reveal();
             }
         }
+
+        
     }
 
     public void OnTileFlagged(bool isFlagged)
@@ -515,5 +609,23 @@ public class MinesweeperGameManager : MonoBehaviour
         int difficulty = gameManager != null ? gameManager.currentDifficulty : 0;
         difficulty = Mathf.Clamp(difficulty, 0, 3);
         SetupGame(difficulty);
+    }
+
+   
+
+    public bool IsValidCoordPublic(int x, int y)
+    {
+        return x >= 0 && x < width && y >= 0 && y < height;
+    }
+
+    public MineTile GetTileAt(int x, int y)
+    {
+        return grid[x, y];
+    }
+
+    public void IncrementRevealedCount()
+    {
+        revealedCount++;
+        CheckWinCondition();
     }
 }
