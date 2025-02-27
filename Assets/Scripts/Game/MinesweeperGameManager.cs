@@ -52,6 +52,9 @@ public class MinesweeperGameManager : MonoBehaviour
     // Reference to the GameManager singleton
     private GameManager gameManager;
 
+    //mine positions
+    private List<Vector2Int> minePositions = new List<Vector2Int>();
+
     void Start()
     {
         // Get reference to main camera if not assigned
@@ -333,7 +336,8 @@ public class MinesweeperGameManager : MonoBehaviour
 
     private void GenerateMines(int safeX, int safeY)
     {
-        // Create a safe zone around the first click
+        minePositions.Clear();
+        // 1) Determine which positions are safe around first click
         List<Vector2Int> safeZone = new List<Vector2Int>();
         for (int xOffset = -1; xOffset <= 1; xOffset++)
         {
@@ -348,7 +352,7 @@ public class MinesweeperGameManager : MonoBehaviour
             }
         }
 
-        // Create a list of all possible mine positions (excluding safe zone)
+        // 2) Build a list of all possible mine positions except the safe zone
         List<Vector2Int> possiblePositions = new List<Vector2Int>();
         for (int x = 0; x < width; x++)
         {
@@ -362,7 +366,7 @@ public class MinesweeperGameManager : MonoBehaviour
             }
         }
 
-        // Shuffle the list
+        // 3) Shuffle the list
         for (int i = 0; i < possiblePositions.Count; i++)
         {
             int randomIndex = Random.Range(i, possiblePositions.Count);
@@ -371,12 +375,15 @@ public class MinesweeperGameManager : MonoBehaviour
             possiblePositions[randomIndex] = temp;
         }
 
-        // Place mines
+        // 4) Place mines
         int minesToPlace = Mathf.Min(mineCount, possiblePositions.Count);
         for (int i = 0; i < minesToPlace; i++)
         {
             Vector2Int pos = possiblePositions[i];
             grid[pos.x, pos.y].SetMine(true);
+
+            // RECORD the mine position in our list (NEW)
+            minePositions.Add(pos);
         }
     }
 
@@ -481,15 +488,13 @@ public class MinesweeperGameManager : MonoBehaviour
 
     private void RevealAllMines() //optimize
     {
-        for (int x = 0; x < width; x++)
+        // Just loop through known mine positions; no need to scan everything
+        foreach (var minePos in minePositions)
         {
-            for (int y = 0; y < height; y++)
+            MineTile tile = grid[minePos.x, minePos.y];
+            if (!tile.IsRevealed())
             {
-                MineTile tile = grid[x, y];
-                if (tile.IsMine() && !tile.IsRevealed())
-                {
-                    tile.Reveal();
-                }
+                tile.Reveal();
             }
         }
     }

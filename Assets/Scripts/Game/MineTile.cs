@@ -144,7 +144,10 @@ public class MineTile : MonoBehaviour
         if (isMine)
         {
             spriteRenderer.sprite = mineSprite;
-            gameManager.OnMineRevealed();
+            if (!gameManager.IsGameOver())
+            {
+                gameManager.OnMineRevealed();
+            }
         }
         else
         {
