@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel;
+using System.Threading.Tasks;
+using System.Threading;
 using UnityEngine;
 
 public class MinesweeperGameManager : MonoBehaviour
@@ -355,24 +356,22 @@ public class MinesweeperGameManager : MonoBehaviour
         revealedCount = 0;
     }
 
-    public void OnTileClicked(int x, int y)
+    public async void OnTileClicked(int x, int y)
     {
         if (currentState != GameState.Playing || IsPanning()) return;
 
         if (firstClick)
         {
-            GenerateMinesTatham(x, y);
             firstClick = false;
+            await GenerateMinesTatham(x, y);  // WAIT until board is ready
         }
 
         if (!grid[x, y].IsFlagged() && !grid[x, y].IsRevealed())
         {
             if (grid[x, y].GetAdjacentMines() == 0 && !grid[x, y].IsMine())
             {
-
-                    FloodFillWithAnimation(x, y);
-               
-                
+                Debug.Log($"[DEBUG] Calling FloodFillWithAnimation at ({x}, {y}) after mines are placed.");
+                FloodFillWithAnimation(x, y);  // Now it will run AFTER board setup
             }
             else
             {
@@ -386,19 +385,20 @@ public class MinesweeperGameManager : MonoBehaviour
         }
     }
 
-    private void GenerateMinesTatham(int safeX, int safeY)
+    private async Task GenerateMinesTatham(int safeX, int safeY)
     {
+        Debug.Log($"[DEBUG] Starting async mine generation for ({safeX}, {safeY})");
+
         minePositions.Clear();
         const int MAX_ATTEMPTS = 500;
-
         System.Random rng = new System.Random();
-
         TathamPuzzle finalPuzzle = null;
         int attempts = 0;
+        float startTime = Time.realtimeSinceStartup;
+
         while (attempts < MAX_ATTEMPTS)
         {
-            TathamPuzzle puzzle = TathamPuzzleGenerator.GeneratePuzzle(width, height, mineCount,
-                                                                       safeX, safeY, rng);
+            TathamPuzzle puzzle = await TathamPuzzleGenerator.GeneratePuzzleParallelAsync(width, height, mineCount, safeX, safeY);
             attempts++;
             if (puzzle != null)
             {
@@ -407,15 +407,18 @@ public class MinesweeperGameManager : MonoBehaviour
             }
         }
 
-        // If we still don't have a puzzle, fallback to last attempt's puzzle
+        float duration = Time.realtimeSinceStartup - startTime;
+        Debug.Log($"[DEBUG] Puzzle generation took {duration:F2} seconds over {attempts} attempts.");
+
         if (finalPuzzle == null)
         {
+            Debug.LogWarning("[DEBUG] No valid puzzle found, using fallback.");
             finalPuzzle = new TathamPuzzle(width, height, mineCount);
-            // We'll just do an empty puzzle or something if we want, or forcibly fill it
-            // but typically this won't happen if puzzle sizes are moderate
         }
 
-        // Copy puzzle data into the board
+        Debug.Log($"[DEBUG] Using final puzzle. Safe Cell ({safeX}, {safeY}) Clue: {finalPuzzle.clues[safeX, safeY]}");
+
+        // Assign mines to the grid
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
@@ -428,7 +431,7 @@ public class MinesweeperGameManager : MonoBehaviour
                     clue = finalPuzzle.clues[x, y];
                 }
                 grid[x, y].SetMine(isMine);
-                if (clue < 0) clue = 0; // -1 => mine
+                if (clue < 0) clue = 0;
                 grid[x, y].SetAdjacentMines(clue);
 
                 if (isMine)
@@ -437,10 +440,15 @@ public class MinesweeperGameManager : MonoBehaviour
                 }
             }
         }
+
+        Debug.Log($"[DEBUG] Board setup complete.");
     }
 
     public void FloodFillWithAnimation(int startX, int startY)
     {
+
+        Debug.Log($"[DEBUG] FloodFillWithAnimation started at ({startX}, {startY})");
+
         // First pass: collect tiles that need to be revealed in BFS order
         Queue<Vector2Int> toCheck = new Queue<Vector2Int>();
         HashSet<Vector2Int> visited = new HashSet<Vector2Int>();
@@ -448,6 +456,8 @@ public class MinesweeperGameManager : MonoBehaviour
 
         toCheck.Enqueue(new Vector2Int(startX, startY));
         visited.Add(new Vector2Int(startX, startY));
+
+        int tileCount = 0;
 
         while (toCheck.Count > 0)
         {
@@ -461,6 +471,7 @@ public class MinesweeperGameManager : MonoBehaviour
 
             // Add to our reveal list
             tilesToReveal.Add(tile);
+            tileCount++;
 
             if (tile.GetAdjacentMines() == 0)
             {
@@ -483,6 +494,7 @@ public class MinesweeperGameManager : MonoBehaviour
             }
         }
 
+        Debug.Log($"[DEBUG] FloodFillWithAnimation completed - {tileCount} tiles will be revealed.");
         // Second pass: animate the tiles
         if (tilesToReveal.Count > 0)
         {
