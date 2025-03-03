@@ -79,6 +79,9 @@ public class MinesweeperGameManager : MonoBehaviour
     private float elapsedTime = 0f; // Tracks time since game started
     private bool isAnimating = false; // Prevents clicking during animations
 
+    [SerializeField] private CustomToggle customToggle;
+    private bool isFlagMode = false;
+
 
     void Start()
     {
@@ -92,7 +95,10 @@ public class MinesweeperGameManager : MonoBehaviour
 
         SetupGame(difficulty);
 
-
+        if (customToggle != null)
+        {
+            customToggle.OnToggleChanged += ToggleFlagMode;
+        }
     }
 
     void Update()
@@ -628,6 +634,15 @@ public class MinesweeperGameManager : MonoBehaviour
         CheckWinCondition();
     }
 
+    private void ToggleFlagMode(bool isOn)
+    {
+        isFlagMode = isOn;
+    }
+
+    public bool IsFlagMode()
+    {
+        return isFlagMode;
+    }
 
     #region UI
 

@@ -101,19 +101,30 @@ public class MineTile : MonoBehaviour
             float dragDistance = Vector2.Distance(touchStartPosition, Input.mousePosition);
             if (holdTime < HOLD_THRESHOLD && dragDistance < DRAG_THRESHOLD)
             {
-                if (isFlagged)
+                // If in Flag Mode, place/remove a flag
+                if (gameManager.IsFlagMode())
                 {
-                    ToggleFlag(); // Remove flag if clicked
+                    ToggleFlag();
                 }
-                else if (!gameManager.IsPanning())
+                else
                 {
-                    gameManager.OnTileClicked(x, y);
+                    // If clicking a flagged tile in Reveal Mode, remove the flag instead of revealing
+                    if (isFlagged)
+                    {
+                        ToggleFlag();
+                    }
+                    else if (!gameManager.IsPanning())
+                    {
+                        gameManager.OnTileClicked(x, y);
+                    }
                 }
             }
         }
 
         holdTime = 0f;
     }
+
+
 
     void OnMouseExit()
     {
