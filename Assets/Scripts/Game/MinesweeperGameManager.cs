@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Threading;
 using UnityEngine;
-using UnityEngine.UI;
+using DG.Tweening;
 using TMPro;
 
 
@@ -571,8 +571,19 @@ public class MinesweeperGameManager : MonoBehaviour
     {
         currentState = GameState.GameOver;
         RevealAllMines();
+        gameCamera.DOOrthoSize(maxZoom, 1.5f).SetEase(Ease.OutQuad);
+        CenterCameraOnBoard();
+        HighlightIncorrectFlags();
         Debug.Log("Game Over!");
     }
+
+    private void CenterCameraOnBoard()
+    {
+        Vector3 boardCenter = new Vector3(0, 0, gameCamera.transform.position.z);
+        gameCamera.transform.DOMove(boardCenter, 1.5f).SetEase(Ease.OutQuad);
+    }
+
+
 
     private void RevealAllMines()
     {
@@ -646,6 +657,20 @@ public class MinesweeperGameManager : MonoBehaviour
 
     #region UI
 
+    private void HighlightIncorrectFlags()
+    {
+        foreach (MineTile tile in grid)
+        {
+            if (tile.IsFlagged() && !tile.IsMine()) // If the tile is flagged but NOT a mine
+            {
+                // Change flag to red "X"
+                tile.SetIncorrectFlag();
+
+                // Shake animation
+                tile.transform.DOShakePosition(2.0f, 0.3f, 10, 90, false, true);
+            }
+        }
+    }
 
     private void UpdateTimerUI()
     {

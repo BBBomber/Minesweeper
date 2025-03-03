@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using DG.Tweening;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 
@@ -10,6 +11,8 @@ public class MineTile : MonoBehaviour
     [SerializeField] private Sprite defaultSprite;
     [SerializeField] private Sprite mineSprite;
     [SerializeField] private Sprite flagSprite;
+    [SerializeField] private Sprite incorrectFlagSprite; 
+
 
     private SpriteRenderer spriteRenderer;
     private bool isRevealed = false;
@@ -139,6 +142,7 @@ public class MineTile : MonoBehaviour
         // Prevent flagging before the first click
         if (gameManager.IsFirstClick())
         {
+            this.transform.DOShakePosition(0.8f, 0.3f, 10, 90, false, true);
             Debug.Log("Cannot flag before first click!");
             return;
         }
@@ -146,6 +150,7 @@ public class MineTile : MonoBehaviour
         // If trying to place a flag but all flags are used up, do nothing
         if (!isFlagged && gameManager.GetRemainingFlags() <= 0)
         {
+            this.transform.DOShakePosition(0.8f, 0.3f, 10, 90, false, true);
             Debug.Log("No flags remaining!");
             return;
         }
@@ -234,4 +239,10 @@ public class MineTile : MonoBehaviour
     {
         return new Vector2Int(x, y);
     }
+
+    public void SetIncorrectFlag()
+    {
+        spriteRenderer.sprite = incorrectFlagSprite; // Change flag to red "X"
+    }
+
 }
