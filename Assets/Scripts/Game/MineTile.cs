@@ -94,30 +94,25 @@ public class MineTile : MonoBehaviour
     {
         if (isRevealed || gameManager.IsGameOver()) return;
 
-        // Ignore if right or middle mouse button was used
-        if (Input.GetMouseButton(1) || Input.GetMouseButton(2))
-        {
-            return;
-        }
-
         if (isHolding)
         {
             isHolding = false;
 
-            // Check if this was a tap or a drag
             float dragDistance = Vector2.Distance(touchStartPosition, Input.mousePosition);
-
-            // If held for less than threshold and not dragged far, it's a normal click (reveal)
             if (holdTime < HOLD_THRESHOLD && dragDistance < DRAG_THRESHOLD)
             {
-                if (!isFlagged && !gameManager.IsPanning())
+                if (isFlagged)
+                {
+                    ToggleFlag(); // Remove flag if clicked
+                }
+                else if (!gameManager.IsPanning())
                 {
                     gameManager.OnTileClicked(x, y);
                 }
             }
-
-            holdTime = 0f;
         }
+
+        holdTime = 0f;
     }
 
     void OnMouseExit()
@@ -134,6 +129,13 @@ public class MineTile : MonoBehaviour
         if (gameManager.IsFirstClick())
         {
             Debug.Log("Cannot flag before first click!");
+            return;
+        }
+
+        // If trying to place a flag but all flags are used up, do nothing
+        if (!isFlagged && gameManager.GetRemainingFlags() <= 0)
+        {
+            Debug.Log("No flags remaining!");
             return;
         }
 
@@ -185,37 +187,7 @@ public class MineTile : MonoBehaviour
         );
     }
 
-    // Add this method to your MineTile class to fix flood fill behavior
-    public void ForceReveal()
-    {
-        // This method is similar to Reveal() but skips the flag check
-        if (isRevealed) return;
-
-        isRevealed = true;
-
-        if (isMine)
-        {
-            spriteRenderer.sprite = mineSprite;
-            if (!gameManager.IsGameOver())
-            {
-                gameManager.OnMineRevealed();
-            }
-        }
-        else
-        {
-            // Use the correct number sprite based on adjacent mines
-            if (adjacentMines >= 0 && adjacentMines < numberSprites.Length)
-            {
-                spriteRenderer.sprite = numberSprites[adjacentMines];
-            }
-
-            // If no adjacent mines, flood fill
-            if (adjacentMines == 0)
-            {
-                gameManager.FloodFill(x, y);
-            }
-        }
-    }
+   
 
     public void SetMine(bool value)
     {
