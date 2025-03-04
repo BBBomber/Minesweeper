@@ -17,7 +17,7 @@ public class MinesweeperGameManager : MonoBehaviour
 
     // Camera control parameters
     [SerializeField] private Camera gameCamera;
-    [SerializeField] private float[] difficultyMinZoom = { 3f, 3f, 2.5f, 2f };  // Min zoom per difficulty
+    [SerializeField] private float[] difficultyMinZoom = { 3f, 3f, 35f, 3f };  // Min zoom per difficulty
     [SerializeField] private float[] difficultyMaxZoom = { 10f, 15f, 18f, 20f }; // Max zoom per difficulty
     [SerializeField] private float[] difficultyStartZoom = { 5f, 7f, 9f, 11f };  // Starting zoom per difficulty
     [SerializeField] private float zoomSpeed = 0.5f;
@@ -88,6 +88,7 @@ public class MinesweeperGameManager : MonoBehaviour
     public GameWinManager popup;
 
     [SerializeField] private GameObject restartPanel;
+    [SerializeField] private DifficultySelectorTMP difficultySelector;
 
     void Start()
     {
@@ -111,7 +112,7 @@ public class MinesweeperGameManager : MonoBehaviour
 
     void Update()
     {
-        if (currentState == GameState.Playing)
+        if (currentState == GameState.Playing && !firstClick)
         {
             elapsedTime += Time.deltaTime;
             UpdateTimerUI();
@@ -275,14 +276,27 @@ public class MinesweeperGameManager : MonoBehaviour
         }
     }
 
+    private void AnimateCameraToTile(int x, int y)
+    {
+        // Get the target tile position (keep the camera's z-position)
+        Vector3 tilePos = grid[x, y].transform.position;
+        tilePos.z = gameCamera.transform.position.z;
+
+        // Define the target zoom level: half of the max zoom
+        float targetZoom = maxZoom / 1.5f;
+
+        // Animate camera position and zoom (duration is 1.0 seconds, adjust as needed)
+        gameCamera.transform.DOMove(tilePos, 1.0f).SetEase(Ease.OutQuad);
+        gameCamera.DOOrthoSize(targetZoom, 1.0f).SetEase(Ease.OutQuad);
+    }
     private void SetupGame(int difficulty)
     {
         width = difficultyWidths[difficulty];
         height = difficultyHeights[difficulty];
         mineCount = Mathf.FloorToInt(width * height * difficultyMineDensities[difficulty]);
 
-        minZoom = difficultyMinZoom[difficulty];
-        maxZoom = difficultyMaxZoom[difficulty];
+        elapsedTime = 0f;
+        minZoom = 3f;
 
         CreateBoard();
         ResetCameraView(difficulty);
@@ -294,6 +308,7 @@ public class MinesweeperGameManager : MonoBehaviour
         togglePanel.SetActive(true);
         restartPanel.SetActive(false);
     }
+
 
     private void CalculateCameraBounds()
     {
@@ -338,14 +353,28 @@ public class MinesweeperGameManager : MonoBehaviour
     {
         if (gameCamera != null)
         {
+            // Calculate the board dimensions
             float boardWidth = width * (tileSize + spacing) - spacing;
             float boardHeight = height * (tileSize + spacing) - spacing;
+
+            // Center the camera on the board
             gameCamera.transform.position = new Vector3(0, 0, gameCamera.transform.position.z);
-            float desiredZoom = difficultyStartZoom[difficulty];
-            gameCamera.orthographicSize = Mathf.Clamp(desiredZoom, minZoom, maxZoom);
+
+            // Calculate the orthographic size required so that:
+            // - Horizontally, the board plus 15% extra space is visible
+            // - Vertically, the board fits exactly
+            float horizontalRequired = (boardWidth * 1.50f) / (2 * gameCamera.aspect);
+            float verticalRequired = boardHeight / 2;
+            float dynamicMaxZoom = Mathf.Max(horizontalRequired, verticalRequired);
+
+            // Set max zoom and use it as the starting zoom level.
+            maxZoom = dynamicMaxZoom;
+            gameCamera.orthographicSize = maxZoom;
+
             CalculateCameraBounds();
         }
     }
+
 
     private void CreateBoard()
     {
@@ -405,7 +434,10 @@ public class MinesweeperGameManager : MonoBehaviour
         if (firstClick)
         {
             firstClick = false;
+            AnimateCameraToTile(x, y);
+            difficultySelector.currentIndex = GameManager.Instance.currentDifficulty;
             await GenerateMinesTatham(x, y);
+            
         }
 
         if (!grid[x, y].IsFlagged() && !grid[x, y].IsRevealed())
@@ -418,6 +450,7 @@ public class MinesweeperGameManager : MonoBehaviour
             }
             else
             {
+                Handheld.Vibrate();
                 grid[x, y].Reveal();
                 if (!grid[x, y].IsMine())
                 {
@@ -575,8 +608,10 @@ public class MinesweeperGameManager : MonoBehaviour
         if (revealedCount == (width * height - mineCount))
         {
             currentState = GameState.Win;
+            
             togglePanel.SetActive(false);
             Debug.Log("Game Won!");
+            RevealRemainingTiles();
             gameCamera.DOOrthoSize(maxZoom, 1.5f).SetEase(Ease.OutQuad);
             CenterCameraOnBoard();
             if (popup != null)
@@ -584,6 +619,7 @@ public class MinesweeperGameManager : MonoBehaviour
                 Debug.Log("Popup Found");
                 popup.ShowPopup(gameManager.currentDifficulty, elapsedTime);
             }
+            
         }
     }
 
@@ -596,6 +632,7 @@ public class MinesweeperGameManager : MonoBehaviour
         CenterCameraOnBoard();
         HighlightIncorrectFlags();
         restartPanel.SetActive(true);
+        
         Debug.Log("Game Over!");
     }
 
@@ -619,6 +656,21 @@ public class MinesweeperGameManager : MonoBehaviour
         }
 
         
+    }
+
+    private void RevealRemainingTiles()
+    {
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                // Only reveal if the tile isn't already revealed and isn't flagged.
+                if (!grid[x, y].IsRevealed() && !grid[x, y].IsFlagged())
+                {
+                    grid[x, y].ForceReveal();
+                }
+            }
+        }
     }
 
     public void OnTileFlagged(bool isFlagged)
@@ -681,6 +733,8 @@ public class MinesweeperGameManager : MonoBehaviour
 
     public void LoadMainMenu()
     {
+        gameManager.currentDifficulty = 0;
+        popup.ClosePopup();
         SceneManager.LoadScene("HomePage");
     }
 
@@ -711,6 +765,11 @@ public class MinesweeperGameManager : MonoBehaviour
     {
         int remainingMines = mineCount - flaggedCount;
         mineCounterText.text = $"{remainingMines}";
+    }
+
+    public bool IsAnimationInProgress()
+    {
+        return isAnimating;
     }
 
     #endregion

@@ -46,5 +46,7 @@ public class RotateImageEaseOut : MonoBehaviour
         targetImage.eulerAngles = finalEulerAngles;
 
         isProcessing = false;
+
+        GameManager.Instance.LoadScene("GameScene");
     }
 }

@@ -80,6 +80,14 @@ public class MineTile : MonoBehaviour
         if (Input.touchCount > 0 && !gameManager.IsPanning() && !isRevealed && !gameManager.IsGameOver())
         {
             Touch touch = Input.GetTouch(0);
+
+            // Check if this touch is over a UI element
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(touch.fingerId))
+            {
+                return;
+            }
+
+
             Vector3 touchPosition = Camera.main.ScreenToWorldPoint(touch.position);
             Vector2 touchPosition2D = new Vector2(touchPosition.x, touchPosition.y);
 
@@ -121,7 +129,9 @@ public class MineTile : MonoBehaviour
                     else if (holdTime >= HOLD_THRESHOLD)
                     {
                         // Long press - toggle flag
+                        Handheld.Vibrate();
                         ToggleFlag();
+                        
                     }
 
                     holdTime = 0f;
@@ -147,6 +157,9 @@ public class MineTile : MonoBehaviour
 
     void OnMouseDown()
     {
+        // Prevent processing if pointer is over UI
+        if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+            return;
         // Only process mouse input on non-touch devices
         if (Input.touchCount > 0 || isRevealed || gameManager.IsGameOver()) return;
 
@@ -207,13 +220,15 @@ public class MineTile : MonoBehaviour
 
     public void ToggleFlag()
     {
-        if (isRevealed || gameManager.IsGameOver()) return;
-        
+        if (isRevealed || gameManager.IsGameOver() || gameManager.IsAnimationInProgress())
+            return;
+
         // Prevent flagging before the first click
         if (gameManager.IsFirstClick())
         {
             this.transform.DOShakePosition(0.8f, 0.3f, 10, 90, false, true);
             Debug.Log("Cannot flag before first click!");
+            Handheld.Vibrate();
             return;
         }
 
@@ -222,6 +237,7 @@ public class MineTile : MonoBehaviour
         {
             this.transform.DOShakePosition(0.8f, 0.3f, 10, 90, false, true);
             Debug.Log("No flags remaining!");
+            Handheld.Vibrate();
             return;
         }
 
@@ -313,6 +329,32 @@ public class MineTile : MonoBehaviour
     public void SetIncorrectFlag()
     {
         spriteRenderer.sprite = incorrectFlagSprite; // Change flag to red "X"
+    }
+
+    public void ForceReveal()
+    {
+        // If the tile is already revealed, do nothing.
+        if (isRevealed)
+            return;
+
+        isRevealed = true;
+
+        // Reveal the appropriate sprite.
+        if (isMine)
+        {
+            spriteRenderer.sprite = mineSprite;
+        }
+        else
+        {
+            if (adjacentMines >= 0 && adjacentMines < numberSprites.Length)
+            {
+                spriteRenderer.sprite = numberSprites[adjacentMines];
+            }
+            else
+            {
+                spriteRenderer.sprite = defaultSprite;
+            }
+        }
     }
 
 }

@@ -117,7 +117,7 @@ public class GameWinManager : MonoBehaviour
 
 
 
-    private void ClosePopup()
+    public void ClosePopup()
     {
         popupPanel.SetActive(false);
     }

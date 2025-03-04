@@ -31,7 +31,6 @@ public class DifficultySelectorTMP : MonoBehaviour
         }
 
         // Initialize the text and positions
-        currentIndex = 0;
         currentText.text = difficulties[currentIndex];
         currentText.rectTransform.position = centerPos.position;
 

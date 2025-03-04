@@ -10,10 +10,7 @@ public class StartButtonPress : MonoBehaviour
 
     public void StartProcess()
     {
-        if (!isProcessing && targetOutline != null)
-        {
-            StartCoroutine(ReduceOutlineDistance());
-        }
+
     }
 
     private IEnumerator ReduceOutlineDistance()
@@ -46,6 +43,6 @@ public class StartButtonPress : MonoBehaviour
 
     private void OnBothValuesZero()
     {
-        GameManager.Instance.LoadScene("GameScene");
+        
     }
 }
