@@ -82,6 +82,7 @@ public class MinesweeperGameManager : MonoBehaviour
     [SerializeField] private CustomToggle customToggle;
     private bool isFlagMode = false;
 
+    public GameWinManager popup;
 
     void Start()
     {
@@ -564,6 +565,12 @@ public class MinesweeperGameManager : MonoBehaviour
             //reveal the rest of the tiles
             //do whatever
             Debug.Log("Game Won!");
+
+            if (popup != null)
+            {
+                Debug.Log("Popup Found");
+                popup.ShowPopup(gameManager.currentDifficulty, elapsedTime);
+            }
         }
     }
 
