@@ -89,6 +89,8 @@ public class MinesweeperGameManager : MonoBehaviour
 
     [SerializeField] private GameObject restartPanel;
     [SerializeField] private DifficultySelectorTMP difficultySelector;
+    [SerializeField] private GameObject instructionsPanel;
+
 
     void Start()
     {
@@ -102,6 +104,17 @@ public class MinesweeperGameManager : MonoBehaviour
 
         SetupGame(difficulty);
 
+        // Check if the player has seen the instructions before.
+        if (PlayerPrefs.GetInt("HasSeenInstructions", 0) == 0)
+        {
+            // Show the instructions panel
+            instructionsPanel.SetActive(true);
+        }
+        else
+        {
+            instructionsPanel.SetActive(false);
+        }
+
         if (customToggle != null)
         {
             customToggle.OnToggleChanged += ToggleFlagMode;
@@ -110,6 +123,11 @@ public class MinesweeperGameManager : MonoBehaviour
         
     }
 
+    public void OnContinueButtonClicked()
+    {
+        instructionsPanel.SetActive(false);
+        PlayerPrefs.SetInt("HasSeenInstructions", 1); // Mark that instructions have been seen
+    }
     void Update()
     {
         if (currentState == GameState.Playing && !firstClick)
@@ -214,6 +232,7 @@ public class MinesweeperGameManager : MonoBehaviour
 
         if (Input.touchCount == 2)
         {
+            // [Zoom logic remains the same...]
             Touch touchZero = Input.GetTouch(0);
             Touch touchOne = Input.GetTouch(1);
             if (touchZero.phase == TouchPhase.Began || touchOne.phase == TouchPhase.Began)
@@ -221,7 +240,7 @@ public class MinesweeperGameManager : MonoBehaviour
                 touchZoomStart = touchZero.position - touchOne.position;
                 startZoom = gameCamera.orthographicSize;
                 isZooming = true;
-                isPanning = false;
+                isPanning = false;  // Ensure panning is off when zooming starts
             }
             else if (touchZero.phase == TouchPhase.Moved || touchOne.phase == TouchPhase.Moved)
             {
@@ -234,37 +253,51 @@ public class MinesweeperGameManager : MonoBehaviour
             else if (touchZero.phase == TouchPhase.Ended || touchOne.phase == TouchPhase.Ended)
             {
                 EnforceCameraBounds();
+                isZooming = false;
             }
         }
         else if (Input.touchCount == 1)
         {
             Touch touch = Input.GetTouch(0);
+
+            // If we were zooming and a new touch begins, reset zooming
             if (isZooming && touch.phase == TouchPhase.Began)
             {
                 isZooming = false;
             }
+
             if (touch.phase == TouchPhase.Began)
             {
+                // Record the start position for potential panning
                 touchStart = gameCamera.ScreenToWorldPoint(touch.position);
-                //isPanning = true;
+                // Do not set isPanning here; wait to see if movement exceeds threshold
             }
-            else if (touch.phase == TouchPhase.Moved && isPanning)
+            else if (touch.phase == TouchPhase.Moved)
             {
-                if (!isPanning && touch.deltaPosition.magnitude > PAN_THRESHOLD)
+                // Calculate the drag distance from the initial touch position
+                float dragDistance = (touch.position - touch.rawPosition).magnitude;
+                // If the movement exceeds the threshold, consider it a pan
+                if (!isPanning && dragDistance > PAN_THRESHOLD)
                 {
                     isPanning = true;
                 }
                 if (isPanning)
                 {
-                    Vector3 direction = touchStart - gameCamera.ScreenToWorldPoint(touch.position);
+                    // Move the camera based on the touch movement
+                    Vector3 currentTouchWorldPos = gameCamera.ScreenToWorldPoint(touch.position);
+                    Vector3 direction = touchStart - currentTouchWorldPos;
                     Vector3 newPosition = gameCamera.transform.position + direction * panSpeed * Time.deltaTime;
                     newPosition = LimitWithinBoundsWithOvershoot(newPosition);
                     gameCamera.transform.position = newPosition;
-                    touchStart = gameCamera.ScreenToWorldPoint(touch.position);
+
+                    // Update the touch start for the next frame
+                    touchStart = currentTouchWorldPos;
                 }
             }
             else if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
             {
+                // If the user did not pan (i.e. drag distance below threshold), 
+                // the tile's own touch logic will handle the tap.
                 isPanning = false;
                 EnforceCameraBounds();
             }
@@ -275,6 +308,7 @@ public class MinesweeperGameManager : MonoBehaviour
             isZooming = false;
         }
     }
+
 
     private void AnimateCameraToTile(int x, int y)
     {
@@ -450,7 +484,7 @@ public class MinesweeperGameManager : MonoBehaviour
             }
             else
             {
-                Handheld.Vibrate();
+                
                 grid[x, y].Reveal();
                 if (!grid[x, y].IsMine())
                 {

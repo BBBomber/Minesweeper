@@ -129,7 +129,7 @@ public class MineTile : MonoBehaviour
                     else if (holdTime >= HOLD_THRESHOLD)
                     {
                         // Long press - toggle flag
-                        Handheld.Vibrate();
+                        //Handheld.Vibrate();
                         ToggleFlag();
                         
                     }
@@ -240,7 +240,7 @@ public class MineTile : MonoBehaviour
             Handheld.Vibrate();
             return;
         }
-
+        Handheld.Vibrate();
         isFlagged = !isFlagged;
         spriteRenderer.sprite = isFlagged ? flagSprite : defaultSprite;
         gameManager.OnTileFlagged(isFlagged);
@@ -260,6 +260,7 @@ public class MineTile : MonoBehaviour
 
         if (isMine)
         {
+            Handheld.Vibrate();
             spriteRenderer.sprite = mineSprite;
             if (!gameManager.IsGameOver())
             {
