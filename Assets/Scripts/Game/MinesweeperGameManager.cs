@@ -5,6 +5,7 @@ using System.Threading;
 using UnityEngine;
 using DG.Tweening;
 using TMPro;
+using UnityEngine.SceneManagement;
 
 
 public class MinesweeperGameManager : MonoBehaviour
@@ -84,6 +85,8 @@ public class MinesweeperGameManager : MonoBehaviour
     private bool isFlagMode = false;
 
     public GameWinManager popup;
+
+    [SerializeField] private GameObject restartPanel;
 
     void Start()
     {
@@ -284,6 +287,7 @@ public class MinesweeperGameManager : MonoBehaviour
         currentState = GameState.Playing;
         firstClick = true;
         togglePanel.SetActive(true);
+        restartPanel.SetActive(false);
     }
 
     private void CalculateCameraBounds()
@@ -586,6 +590,7 @@ public class MinesweeperGameManager : MonoBehaviour
         gameCamera.DOOrthoSize(maxZoom, 1.5f).SetEase(Ease.OutQuad);
         CenterCameraOnBoard();
         HighlightIncorrectFlags();
+        restartPanel.SetActive(true);
         Debug.Log("Game Over!");
     }
 
@@ -668,6 +673,11 @@ public class MinesweeperGameManager : MonoBehaviour
     }
 
     #region UI
+
+    public void LoadMainMenu()
+    {
+        SceneManager.LoadScene("HomePage");
+    }
 
     private void HighlightIncorrectFlags()
     {

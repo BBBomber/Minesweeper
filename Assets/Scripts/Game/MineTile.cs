@@ -64,7 +64,7 @@ public class MineTile : MonoBehaviour
 
     void Update()
     {
-        // Handle hold for flagging
+        // Handle hold for flagging on desktop
         if (isHolding)
         {
             holdTime += Time.deltaTime;
@@ -75,11 +75,80 @@ public class MineTile : MonoBehaviour
                 holdTime = 0f;
             }
         }
+
+        // Handle touch input for mobile
+        if (Input.touchCount > 0 && !gameManager.IsPanning() && !isRevealed && !gameManager.IsGameOver())
+        {
+            Touch touch = Input.GetTouch(0);
+            Vector3 touchPosition = Camera.main.ScreenToWorldPoint(touch.position);
+            Vector2 touchPosition2D = new Vector2(touchPosition.x, touchPosition.y);
+
+            Collider2D hitCollider = Physics2D.OverlapPoint(touchPosition2D);
+
+            if (hitCollider != null && hitCollider.gameObject == gameObject)
+            {
+                if (touch.phase == TouchPhase.Began)
+                {
+                    // Touch began on this tile
+                    isHolding = true;
+                    holdTime = 0f;
+                    touchStartPosition = touch.position;
+                }
+                else if (touch.phase == TouchPhase.Ended && isHolding)
+                {
+                    isHolding = false;
+                    float dragDistance = Vector2.Distance(touchStartPosition, touch.position);
+
+                    if (holdTime < HOLD_THRESHOLD && dragDistance < DRAG_THRESHOLD)
+                    {
+                        // Short tap - reveal or toggle flag
+                        if (gameManager.IsFlagMode())
+                        {
+                            ToggleFlag();
+                        }
+                        else
+                        {
+                            if (isFlagged)
+                            {
+                                ToggleFlag();
+                            }
+                            else
+                            {
+                                gameManager.OnTileClicked(x, y);
+                            }
+                        }
+                    }
+                    else if (holdTime >= HOLD_THRESHOLD)
+                    {
+                        // Long press - toggle flag
+                        ToggleFlag();
+                    }
+
+                    holdTime = 0f;
+                }
+                else if (touch.phase == TouchPhase.Canceled)
+                {
+                    isHolding = false;
+                    holdTime = 0f;
+                }
+            }
+            else if (touch.phase == TouchPhase.Moved && isHolding)
+            {
+                // If the touch has moved too far, cancel the hold
+                float dragDistance = Vector2.Distance(touchStartPosition, touch.position);
+                if (dragDistance > DRAG_THRESHOLD)
+                {
+                    isHolding = false;
+                    holdTime = 0f;
+                }
+            }
+        }
     }
 
     void OnMouseDown()
     {
-        if (isRevealed || gameManager.IsGameOver()) return;
+        // Only process mouse input on non-touch devices
+        if (Input.touchCount > 0 || isRevealed || gameManager.IsGameOver()) return;
 
         // Ignore if right or middle mouse button is used (for panning)
         if (Input.GetMouseButton(1) || Input.GetMouseButton(2))
@@ -95,7 +164,8 @@ public class MineTile : MonoBehaviour
 
     void OnMouseUp()
     {
-        if (isRevealed || gameManager.IsGameOver()) return;
+        // Only process mouse input on non-touch devices
+        if (Input.touchCount > 0 || isRevealed || gameManager.IsGameOver()) return;
 
         if (isHolding)
         {
@@ -138,7 +208,7 @@ public class MineTile : MonoBehaviour
     public void ToggleFlag()
     {
         if (isRevealed || gameManager.IsGameOver()) return;
-
+        
         // Prevent flagging before the first click
         if (gameManager.IsFirstClick())
         {
