@@ -47,9 +47,18 @@ public class GameWinManager : MonoBehaviour
     private List<ScoreEntry> LoadScores(int difficulty)
     {
         string key = $"{difficultyNames[difficulty]}Scores";
-        string json = PlayerPrefs.GetString(key, "[]");
-        return JsonUtility.FromJson<ScoreList>(json).scores ?? new List<ScoreEntry>();
+        string json = PlayerPrefs.GetString(key, "");
+
+        if (string.IsNullOrEmpty(json))
+        {
+            return new List<ScoreEntry>(); // Return an empty list if there's no data
+        }
+
+        // Correct way to deserialize a list
+        ScoreList scoreList = JsonUtility.FromJson<ScoreList>(json);
+        return scoreList != null ? scoreList.scores : new List<ScoreEntry>();
     }
+
 
     private void SaveScores(int difficulty, List<ScoreEntry> scores)
     {
