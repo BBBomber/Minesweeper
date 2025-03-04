@@ -79,6 +79,7 @@ public class MinesweeperGameManager : MonoBehaviour
     private float elapsedTime = 0f; // Tracks time since game started
     private bool isAnimating = false; // Prevents clicking during animations
 
+    [SerializeField] private GameObject togglePanel;
     [SerializeField] private CustomToggle customToggle;
     private bool isFlagMode = false;
 
@@ -100,6 +101,8 @@ public class MinesweeperGameManager : MonoBehaviour
         {
             customToggle.OnToggleChanged += ToggleFlagMode;
         }
+
+        
     }
 
     void Update()
@@ -280,6 +283,7 @@ public class MinesweeperGameManager : MonoBehaviour
 
         currentState = GameState.Playing;
         firstClick = true;
+        togglePanel.SetActive(true);
     }
 
     private void CalculateCameraBounds()
@@ -562,10 +566,10 @@ public class MinesweeperGameManager : MonoBehaviour
         if (revealedCount == (width * height - mineCount))
         {
             currentState = GameState.Win;
-            //reveal the rest of the tiles
-            //do whatever
+            togglePanel.SetActive(false);
             Debug.Log("Game Won!");
-
+            gameCamera.DOOrthoSize(maxZoom, 1.5f).SetEase(Ease.OutQuad);
+            CenterCameraOnBoard();
             if (popup != null)
             {
                 Debug.Log("Popup Found");
@@ -576,6 +580,7 @@ public class MinesweeperGameManager : MonoBehaviour
 
     public void OnMineRevealed()
     {
+        togglePanel.SetActive(false);
         currentState = GameState.GameOver;
         RevealAllMines();
         gameCamera.DOOrthoSize(maxZoom, 1.5f).SetEase(Ease.OutQuad);

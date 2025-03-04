@@ -600,6 +600,7 @@ MonoBehaviour:
   maxOvershoot: 5
   timerText: {fileID: 866704011}
   mineCounterText: {fileID: 645881891}
+  togglePanel: {fileID: 2136138337}
   customToggle: {fileID: 2136138340}
   popup: {fileID: 2035000609}
 --- !u!4 &245367727
@@ -2252,7 +2253,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &2136138338
 RectTransform:
   m_ObjectHideFlags: 0
