@@ -24,7 +24,7 @@ public class GameWinManager : MonoBehaviour
     public void ShowPopup(int difficulty, float elapsedTime)
     {
         popupPanel.SetActive(true);
-        difficultyText.text = $"Difficulty: {difficultyNames[difficulty]}";
+        difficultyText.text = $"{difficultyNames[difficulty]}";
 
         // Save new score
         List<ScoreEntry> scores = LoadScores(difficulty);
