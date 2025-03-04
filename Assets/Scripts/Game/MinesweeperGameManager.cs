@@ -24,6 +24,7 @@ public class MinesweeperGameManager : MonoBehaviour
     [SerializeField] private float mouseZoomSpeed = 0.5f;
     [SerializeField] private float panSpeed = 10f;
     [SerializeField] private float mousePanSpeed = 10f;
+    private const float PAN_THRESHOLD = 3f;
 
     // Private camera control variables
     private float minZoom;
@@ -244,11 +245,15 @@ public class MinesweeperGameManager : MonoBehaviour
             if (touch.phase == TouchPhase.Began)
             {
                 touchStart = gameCamera.ScreenToWorldPoint(touch.position);
-                isPanning = true;
+                //isPanning = true;
             }
             else if (touch.phase == TouchPhase.Moved && isPanning)
             {
-                if (touch.deltaPosition.magnitude > 5)
+                if (!isPanning && touch.deltaPosition.magnitude > PAN_THRESHOLD)
+                {
+                    isPanning = true;
+                }
+                if (isPanning)
                 {
                     Vector3 direction = touchStart - gameCamera.ScreenToWorldPoint(touch.position);
                     Vector3 newPosition = gameCamera.transform.position + direction * panSpeed * Time.deltaTime;
