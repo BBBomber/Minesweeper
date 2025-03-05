@@ -93,6 +93,8 @@ public class MinesweeperGameManager : MonoBehaviour
     [SerializeField] private GameObject instructionsPanel;
     [SerializeField] private Button hintButton;
 
+    [SerializeField] private GameObject errorPopup;              // A panel for error messages
+    [SerializeField] private TextMeshProUGUI errorPopupText;
 
     void Start()
     {
@@ -773,6 +775,29 @@ public class MinesweeperGameManager : MonoBehaviour
 
     #region UI
 
+    private void ShowErrorPopup(string message)
+    {
+        if (errorPopup != null && errorPopupText != null)
+        {
+            errorPopupText.text = message;
+            errorPopup.SetActive(true);
+            // Optionally, auto-hide after 3 seconds:
+            Invoke(nameof(HideErrorPopup), 3f);
+        }
+    }
+
+    /// <summary>
+    /// Hides the error popup.
+    /// </summary>
+    public void HideErrorPopup()
+    {
+        if (errorPopup != null)
+        {
+            errorPopup.SetActive(false);
+        }
+    }
+
+
     public void LoadMainMenu()
     {
         gameManager.currentDifficulty = 0;
@@ -827,19 +852,18 @@ public class MinesweeperGameManager : MonoBehaviour
             return;
         }
 
-        if (!PerformAdvancedHintMove())
+        bool hintExecuted = PerformAdvancedHintMove();
+        if (!hintExecuted)
         {
-            Debug.Log("No forced move found based on current deductions.");
+            // Inform the user that no forced move was found, likely due to incorrect flag placements.
+            ShowErrorPopup("Move could not be deduced.\n\nIt appears some flags might be placed incorrectly.");
         }
     }
 
-    /// <summary>
-    /// Uses global constraint backtracking (similar to the solver logic) to find a forced move.
-    /// </summary>
-    /// <returns>True if a move was executed; false otherwise.</returns>
+
     private bool PerformAdvancedHintMove()
     {
-        // Build constraints from each revealed, non-mine tile.
+        
         List<Constraint> constraints = new List<Constraint>();
         HashSet<Vector2Int> unknownSet = new HashSet<Vector2Int>();
 
@@ -848,20 +872,21 @@ public class MinesweeperGameManager : MonoBehaviour
             for (int y = 0; y < height; y++)
             {
                 MineTile tile = grid[x, y];
-                // Only consider revealed clues (non-mine revealed tiles)
                 if (tile.IsRevealed() && !tile.IsMine())
                 {
                     int clue = tile.GetAdjacentMines();
                     int flaggedCount = 0;
                     List<Vector2Int> unknownNeighbors = new List<Vector2Int>();
 
-                    // Check all 8 neighbors.
+                    
                     for (int dx = -1; dx <= 1; dx++)
                     {
                         for (int dy = -1; dy <= 1; dy++)
                         {
-                            if (dx == 0 && dy == 0) continue;
-                            int nx = x + dx, ny = y + dy;
+                            if (dx == 0 && dy == 0)
+                                continue;
+                            int nx = x + dx;
+                            int ny = y + dy;
                             if (!IsValidCoord(nx, ny))
                                 continue;
 
@@ -881,8 +906,9 @@ public class MinesweeperGameManager : MonoBehaviour
                     if (unknownNeighbors.Count > 0)
                     {
                         int minesNeeded = clue - flaggedCount;
-                        // (If minesNeeded is negative, the board is in an inconsistent state.)
-                        if (minesNeeded < 0) continue;
+                        
+                        if (minesNeeded < 0)
+                            continue;
 
                         constraints.Add(new Constraint(unknownNeighbors, minesNeeded));
                         foreach (var pos in unknownNeighbors)
@@ -894,29 +920,27 @@ public class MinesweeperGameManager : MonoBehaviour
             }
         }
 
-        // If no constraints were generated, then nothing to deduce.
+        
         if (unknownSet.Count == 0)
             return false;
 
-        // Create a list of all unknown cells that appear in the constraints.
+        
         List<Vector2Int> unknownCells = new List<Vector2Int>(unknownSet);
-
-        // Map each unknown cell to its index in unknownCells.
         Dictionary<Vector2Int, int> unknownIndices = new Dictionary<Vector2Int, int>();
         for (int i = 0; i < unknownCells.Count; i++)
         {
             unknownIndices[unknownCells[i]] = i;
         }
 
-        // Run backtracking to get all valid assignments for these unknown cells.
+       
         List<bool[]> validSolutions = new List<bool[]>();
-        bool[] assignment = new bool[unknownCells.Count]; // true means mine; false means safe.
+        bool[] assignment = new bool[unknownCells.Count]; 
         BacktrackAll(0, unknownCells, unknownIndices, assignment, constraints, validSolutions);
 
         if (validSolutions.Count == 0)
-            return false; // Should not happen in a no-guess board.
+            return false;
 
-        // For each unknown cell, check if it is forced.
+
         for (int i = 0; i < unknownCells.Count; i++)
         {
             bool alwaysMine = true;
@@ -931,33 +955,51 @@ public class MinesweeperGameManager : MonoBehaviour
 
             if (alwaysMine || alwaysSafe)
             {
-                // We found a forced move.
                 Vector2Int hintPos = unknownCells[i];
                 MineTile hintTile = grid[hintPos.x, hintPos.y];
 
-                // Animate the tile to indicate the hint.
-                hintTile.transform.DOShakePosition(2.0f, 0.3f, 10, 90, false, true);
-
-                // Execute the move: if alwaysMine then flag; if alwaysSafe then reveal.
+                // Verify the deduced move against the actual board.
                 if (alwaysMine)
                 {
-                    hintTile.ToggleFlag();
+                    // The deduction forces this cell to be a mine.
+                    // If it isn’t actually a mine, then the flags must be off.
+                    if (!hintTile.IsMine())
+                    {
+                        ShowErrorPopup("Move could not be deduced.\n\nIt appears some flags might be placed incorrectly.");
+                        return false;
+                    }
+                    else
+                    {
+                        // Animate and execute flagging.
+                        hintTile.transform.DOShakePosition(2.0f, 0.3f, 10, 90, false, true);
+                        hintTile.ToggleFlag();
+                        return true;
+                    }
                 }
-                else // alwaysSafe
+                else if (alwaysSafe)
                 {
-                    OnTileClicked(hintPos.x, hintPos.y);
+                    // The deduction forces this cell to be safe.
+                    // If it is actually a mine, then the flags are wrong.
+                    if (hintTile.IsMine())
+                    {
+                        ShowErrorPopup("Move could not be deduced.\n\nIt appears some flags might be placed incorrectly.");
+                        return false;
+                    }
+                    else
+                    {
+                        // Animate and execute the reveal.
+                        hintTile.transform.DOShakePosition(2.0f, 0.3f, 10, 90, false, true);
+                        OnTileClicked(hintPos.x, hintPos.y);
+                        return true;
+                    }
                 }
-                return true;
             }
         }
 
         return false;
     }
 
-    /// <summary>
-    /// Recursively backtracks over all unknown cells to generate valid assignments
-    /// that satisfy all constraints.
-    /// </summary>
+
     private void BacktrackAll(int index,
                               List<Vector2Int> unknownCells,
                               Dictionary<Vector2Int, int> unknownIndices,
@@ -976,20 +1018,18 @@ public class MinesweeperGameManager : MonoBehaviour
             return;
         }
 
-        // Try assigning true (mine) for this cell.
+       
         assignment[index] = true;
         if (CheckPartial(index, unknownCells, unknownIndices, assignment, constraints))
             BacktrackAll(index + 1, unknownCells, unknownIndices, assignment, constraints, validSolutions);
 
-        // Try assigning false (safe) for this cell.
+        
         assignment[index] = false;
         if (CheckPartial(index, unknownCells, unknownIndices, assignment, constraints))
             BacktrackAll(index + 1, unknownCells, unknownIndices, assignment, constraints, validSolutions);
     }
 
-    /// <summary>
-    /// Checks that all constraints are still possible given the partial assignment.
-    /// </summary>
+
     private bool CheckPartial(int assignedCount,
                               List<Vector2Int> unknownCells,
                               Dictionary<Vector2Int, int> unknownIndices,
@@ -1024,9 +1064,7 @@ public class MinesweeperGameManager : MonoBehaviour
         return true;
     }
 
-    /// <summary>
-    /// Checks that the full assignment satisfies every constraint exactly.
-    /// </summary>
+
     private bool CheckAllConstraints(List<Vector2Int> unknownCells,
                                      Dictionary<Vector2Int, int> unknownIndices,
                                      bool[] assignment,
