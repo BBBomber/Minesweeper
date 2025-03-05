@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Threading;
 using UnityEngine;
+using UnityEngine.UI;
 using DG.Tweening;
 using TMPro;
 using UnityEngine.SceneManagement;
@@ -90,6 +91,7 @@ public class MinesweeperGameManager : MonoBehaviour
     [SerializeField] private GameObject restartPanel;
     [SerializeField] private DifficultySelectorTMP difficultySelector;
     [SerializeField] private GameObject instructionsPanel;
+    [SerializeField] private Button hintButton;
 
 
     void Start()
@@ -101,7 +103,7 @@ public class MinesweeperGameManager : MonoBehaviour
         gameManager = GameManager.Instance;
         int difficulty = gameManager != null ? gameManager.currentDifficulty : 0;
         difficulty = Mathf.Clamp(difficulty, 0, 3);
-
+        
         SetupGame(difficulty);
 
         // Check if the player has seen the instructions before.
@@ -331,6 +333,9 @@ public class MinesweeperGameManager : MonoBehaviour
 
         elapsedTime = 0f;
         minZoom = 3f;
+       
+        hintButton.interactable = false;
+        hintButton.gameObject.SetActive(true);
 
         CreateBoard();
         ResetCameraView(difficulty);
@@ -468,9 +473,11 @@ public class MinesweeperGameManager : MonoBehaviour
         if (firstClick)
         {
             firstClick = false;
+            hintButton.interactable = true;
             AnimateCameraToTile(x, y);
             difficultySelector.currentIndex = GameManager.Instance.currentDifficulty;
             await GenerateMinesTatham(x, y);
+            
             
         }
 
@@ -653,7 +660,8 @@ public class MinesweeperGameManager : MonoBehaviour
                 Debug.Log("Popup Found");
                 popup.ShowPopup(gameManager.currentDifficulty, elapsedTime);
             }
-            
+            hintButton.gameObject.SetActive(false);
+
         }
     }
 
@@ -666,7 +674,7 @@ public class MinesweeperGameManager : MonoBehaviour
         CenterCameraOnBoard();
         HighlightIncorrectFlags();
         restartPanel.SetActive(true);
-        
+        hintButton.gameObject.SetActive(false);
         Debug.Log("Game Over!");
     }
 
@@ -808,4 +816,253 @@ public class MinesweeperGameManager : MonoBehaviour
 
     #endregion
 
+    #region Hint
+
+
+    public void OnHintButtonClicked()
+    {
+        if (currentState != GameState.Playing || firstClick || isAnimating)
+        {
+            Debug.Log("Hint not available right now.");
+            return;
+        }
+
+        if (!PerformAdvancedHintMove())
+        {
+            Debug.Log("No forced move found based on current deductions.");
+        }
+    }
+
+    /// <summary>
+    /// Uses global constraint backtracking (similar to the solver logic) to find a forced move.
+    /// </summary>
+    /// <returns>True if a move was executed; false otherwise.</returns>
+    private bool PerformAdvancedHintMove()
+    {
+        // Build constraints from each revealed, non-mine tile.
+        List<Constraint> constraints = new List<Constraint>();
+        HashSet<Vector2Int> unknownSet = new HashSet<Vector2Int>();
+
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                MineTile tile = grid[x, y];
+                // Only consider revealed clues (non-mine revealed tiles)
+                if (tile.IsRevealed() && !tile.IsMine())
+                {
+                    int clue = tile.GetAdjacentMines();
+                    int flaggedCount = 0;
+                    List<Vector2Int> unknownNeighbors = new List<Vector2Int>();
+
+                    // Check all 8 neighbors.
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        for (int dy = -1; dy <= 1; dy++)
+                        {
+                            if (dx == 0 && dy == 0) continue;
+                            int nx = x + dx, ny = y + dy;
+                            if (!IsValidCoord(nx, ny))
+                                continue;
+
+                            MineTile neighbor = grid[nx, ny];
+                            if (neighbor.IsFlagged())
+                            {
+                                flaggedCount++;
+                            }
+                            else if (!neighbor.IsRevealed())
+                            {
+                                Vector2Int pos = new Vector2Int(nx, ny);
+                                unknownNeighbors.Add(pos);
+                            }
+                        }
+                    }
+
+                    if (unknownNeighbors.Count > 0)
+                    {
+                        int minesNeeded = clue - flaggedCount;
+                        // (If minesNeeded is negative, the board is in an inconsistent state.)
+                        if (minesNeeded < 0) continue;
+
+                        constraints.Add(new Constraint(unknownNeighbors, minesNeeded));
+                        foreach (var pos in unknownNeighbors)
+                        {
+                            unknownSet.Add(pos);
+                        }
+                    }
+                }
+            }
+        }
+
+        // If no constraints were generated, then nothing to deduce.
+        if (unknownSet.Count == 0)
+            return false;
+
+        // Create a list of all unknown cells that appear in the constraints.
+        List<Vector2Int> unknownCells = new List<Vector2Int>(unknownSet);
+
+        // Map each unknown cell to its index in unknownCells.
+        Dictionary<Vector2Int, int> unknownIndices = new Dictionary<Vector2Int, int>();
+        for (int i = 0; i < unknownCells.Count; i++)
+        {
+            unknownIndices[unknownCells[i]] = i;
+        }
+
+        // Run backtracking to get all valid assignments for these unknown cells.
+        List<bool[]> validSolutions = new List<bool[]>();
+        bool[] assignment = new bool[unknownCells.Count]; // true means mine; false means safe.
+        BacktrackAll(0, unknownCells, unknownIndices, assignment, constraints, validSolutions);
+
+        if (validSolutions.Count == 0)
+            return false; // Should not happen in a no-guess board.
+
+        // For each unknown cell, check if it is forced.
+        for (int i = 0; i < unknownCells.Count; i++)
+        {
+            bool alwaysMine = true;
+            bool alwaysSafe = true;
+            foreach (var sol in validSolutions)
+            {
+                if (!sol[i])
+                    alwaysMine = false;
+                if (sol[i])
+                    alwaysSafe = false;
+            }
+
+            if (alwaysMine || alwaysSafe)
+            {
+                // We found a forced move.
+                Vector2Int hintPos = unknownCells[i];
+                MineTile hintTile = grid[hintPos.x, hintPos.y];
+
+                // Animate the tile to indicate the hint.
+                hintTile.transform.DOShakePosition(2.0f, 0.3f, 10, 90, false, true);
+
+                // Execute the move: if alwaysMine then flag; if alwaysSafe then reveal.
+                if (alwaysMine)
+                {
+                    hintTile.ToggleFlag();
+                }
+                else // alwaysSafe
+                {
+                    OnTileClicked(hintPos.x, hintPos.y);
+                }
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Recursively backtracks over all unknown cells to generate valid assignments
+    /// that satisfy all constraints.
+    /// </summary>
+    private void BacktrackAll(int index,
+                              List<Vector2Int> unknownCells,
+                              Dictionary<Vector2Int, int> unknownIndices,
+                              bool[] assignment,
+                              List<Constraint> constraints,
+                              List<bool[]> validSolutions)
+    {
+        if (index == unknownCells.Count)
+        {
+            if (CheckAllConstraints(unknownCells, unknownIndices, assignment, constraints))
+            {
+                bool[] sol = new bool[assignment.Length];
+                assignment.CopyTo(sol, 0);
+                validSolutions.Add(sol);
+            }
+            return;
+        }
+
+        // Try assigning true (mine) for this cell.
+        assignment[index] = true;
+        if (CheckPartial(index, unknownCells, unknownIndices, assignment, constraints))
+            BacktrackAll(index + 1, unknownCells, unknownIndices, assignment, constraints, validSolutions);
+
+        // Try assigning false (safe) for this cell.
+        assignment[index] = false;
+        if (CheckPartial(index, unknownCells, unknownIndices, assignment, constraints))
+            BacktrackAll(index + 1, unknownCells, unknownIndices, assignment, constraints, validSolutions);
+    }
+
+    /// <summary>
+    /// Checks that all constraints are still possible given the partial assignment.
+    /// </summary>
+    private bool CheckPartial(int assignedCount,
+                              List<Vector2Int> unknownCells,
+                              Dictionary<Vector2Int, int> unknownIndices,
+                              bool[] assignment,
+                              List<Constraint> constraints)
+    {
+        foreach (var c in constraints)
+        {
+            int mineSoFar = 0;
+            int unassigned = 0;
+            foreach (var cell in c.cells)
+            {
+                int idx;
+                if (unknownIndices.TryGetValue(cell, out idx))
+                {
+                    if (idx < assignedCount)
+                    {
+                        if (assignment[idx])
+                            mineSoFar++;
+                    }
+                    else
+                    {
+                        unassigned++;
+                    }
+                }
+            }
+            if (mineSoFar > c.minesNeeded)
+                return false;
+            if (mineSoFar + unassigned < c.minesNeeded)
+                return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Checks that the full assignment satisfies every constraint exactly.
+    /// </summary>
+    private bool CheckAllConstraints(List<Vector2Int> unknownCells,
+                                     Dictionary<Vector2Int, int> unknownIndices,
+                                     bool[] assignment,
+                                     List<Constraint> constraints)
+    {
+        foreach (var c in constraints)
+        {
+            int mineCount = 0;
+            foreach (var cell in c.cells)
+            {
+                int idx;
+                if (unknownIndices.TryGetValue(cell, out idx))
+                {
+                    if (assignment[idx])
+                        mineCount++;
+                }
+            }
+            if (mineCount != c.minesNeeded)
+                return false;
+        }
+        return true;
+    }
+
+    #endregion
+
+    private class Constraint
+    {
+        public List<Vector2Int> cells;
+        public int minesNeeded;
+        public Constraint(List<Vector2Int> cells, int minesNeeded)
+        {
+            this.cells = cells;
+            this.minesNeeded = minesNeeded;
+        }
+    }
 }
+
+
+
