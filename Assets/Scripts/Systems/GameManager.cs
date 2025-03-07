@@ -128,9 +128,11 @@ public class GameManager : MonoBehaviour
         // Called when the ad fails to open.
         ad.OnAdFullScreenContentFailed += (AdError error) =>
         {
-            Debug.LogError("Rewarded ad failed to open full screen content: " + error);
-
-            // Load a new ad if something went wrong.
+            Debug.LogError("Rewarded ad failed: " + error);
+            if (_minesweeperManager != null)
+            {
+                _minesweeperManager.ShowErrorPopup("Ad failed to open. Please try again later.");
+            }
             LoadRewardedAd();
         };
     }
@@ -147,24 +149,21 @@ public class GameManager : MonoBehaviour
         {
             _rewardedAd.Show((Reward reward) =>
             {
-                // Reward callback
-                Debug.Log($"[GameManager] User rewarded. Type={reward.Type}, Amount={reward.Amount}");
-
-                // Call the advanced hint in the assigned Minesweeper manager
+                Debug.Log("User rewarded!");
                 if (_minesweeperManager != null)
                 {
                     _minesweeperManager.OnHintButtonClicked();
-                }
-                else
-                {
-                    Debug.LogWarning("[GameManager] _minesweeperManager is null; no hint to provide.");
                 }
             });
         }
         else
         {
-            Debug.Log("[GameManager] Rewarded ad not ready yet.");
-            // Optionally do something else here.
+            // If the ad isn't ready, show a popup or fallback
+            Debug.Log("Ad not ready");
+            if (_minesweeperManager != null)
+            {
+                _minesweeperManager.ShowErrorPopup("Ads are not available right now. Please try again later.");
+            }
         }
     }
 

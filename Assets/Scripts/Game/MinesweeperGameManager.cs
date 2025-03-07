@@ -778,7 +778,7 @@ public class MinesweeperGameManager : MonoBehaviour
 
     #region UI
 
-    private void ShowErrorPopup(string message)
+    public void ShowErrorPopup(string message)
     {
         if (errorPopup != null && errorPopupText != null)
         {
@@ -853,6 +853,7 @@ public class MinesweeperGameManager : MonoBehaviour
 
     public void InitialHintClick() //actual on button click
     {
+        ADPanel.SetActive(false);
         GameManager.Instance.SetMinesweeperManagerReference(this);
         GameManager.Instance.OnHintButtonClicked();
     }
