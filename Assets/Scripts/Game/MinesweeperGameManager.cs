@@ -96,6 +96,9 @@ public class MinesweeperGameManager : MonoBehaviour
     [SerializeField] private GameObject errorPopup;              // A panel for error messages
     [SerializeField] private TextMeshProUGUI errorPopupText;
 
+    //ad panel
+    [SerializeField] private GameObject ADPanel;
+
     void Start()
     {
         if (gameCamera == null)
@@ -843,9 +846,22 @@ public class MinesweeperGameManager : MonoBehaviour
 
     #region Hint
 
+    public void OnHintButtonPress()
+    {
+        InitialHintClick();
+    }
 
+    public void InitialHintClick() //actual on button click
+    {
+        GameManager.Instance.SetMinesweeperManagerReference(this);
+        GameManager.Instance.OnHintButtonClicked();
+    }
+
+    //cslled from game manager
+    //called on ad accepted
     public void OnHintButtonClicked()
     {
+        
         if (currentState != GameState.Playing || firstClick || isAnimating)
         {
             Debug.Log("Hint not available right now.");
@@ -859,6 +875,7 @@ public class MinesweeperGameManager : MonoBehaviour
             ShowErrorPopup("Move could not be deduced.\n\nIt appears some flags might be placed incorrectly.");
         }
     }
+
 
 
     private bool PerformAdvancedHintMove()
