@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using GoogleMobileAds.Api;
 
 public class GameManager : MonoBehaviour
 {
@@ -17,6 +18,11 @@ public class GameManager : MonoBehaviour
         {
             Destroy(gameObject);
         }
+
+        MobileAds.Initialize(initStatus => {
+            // Initialization callback
+            Debug.Log("Google Mobile Ads initialized.");
+        });
     }
 
     public void LoadScene(string sceneName)
