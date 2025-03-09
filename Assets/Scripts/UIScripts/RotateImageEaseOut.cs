@@ -10,6 +10,7 @@ public class RotateImageEaseOut : MonoBehaviour
 
     private bool isProcessing = false;
 
+
     public void StartRotation()
     {
         if (!isProcessing && targetImage != null)

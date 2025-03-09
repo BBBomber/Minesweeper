@@ -78,7 +78,7 @@ public class MinesweeperGameManager : MonoBehaviour
     //UI Stuff
     [SerializeField] private TextMeshProUGUI timerText;
     [SerializeField] private TextMeshProUGUI mineCounterText;
- 
+
     private float elapsedTime = 0f; // Tracks time since game started
     private bool isAnimating = false; // Prevents clicking during animations
 
@@ -108,9 +108,9 @@ public class MinesweeperGameManager : MonoBehaviour
         gameManager = GameManager.Instance;
         int difficulty = gameManager != null ? gameManager.currentDifficulty : 0;
         difficulty = Mathf.Clamp(difficulty, 0, 3);
+        width = difficultyWidths[difficulty];
+        height = difficultyHeights[difficulty];
         
-        SetupGame(difficulty);
-
         // Check if the player has seen the instructions before.
         if (PlayerPrefs.GetInt("HasSeenInstructions", 0) == 0)
         {
@@ -127,7 +127,28 @@ public class MinesweeperGameManager : MonoBehaviour
             customToggle.OnToggleChanged += ToggleFlagMode;
         }
 
-        
+        gameManager.SetMinesweeperManagerReference(this);
+
+        // Attempt to resume the game if shouldResume is true
+        if (gameManager.shouldResume)
+        {
+            bool resumeSuccess = ResumeGame(gameManager.currentDifficulty);
+            if (!resumeSuccess)
+            {
+                Debug.Log("Failed to resume game. Starting a new game.");
+                SetupGame(difficulty); // Start a fresh game if resume fails
+            }
+        }
+        else
+        {
+            Debug.Log("no save exists");
+            GameManager.Instance.RemoveSavedGame(difficulty);
+            // Start a fresh game if no saved game exists
+            SetupGame(difficulty);
+        }
+
+        // Reset the shouldResume flag
+        gameManager.shouldResume = false;
     }
 
     public void OnContinueButtonClicked()
@@ -335,10 +356,10 @@ public class MinesweeperGameManager : MonoBehaviour
         width = difficultyWidths[difficulty];
         height = difficultyHeights[difficulty];
         mineCount = Mathf.FloorToInt(width * height * difficultyMineDensities[difficulty]);
-
+        Debug.Log($"Setting up game with width: {width}, height: {height}");
         elapsedTime = 0f;
         minZoom = 3f;
-       
+
         hintButton.interactable = false;
         hintButton.gameObject.SetActive(true);
 
@@ -482,8 +503,8 @@ public class MinesweeperGameManager : MonoBehaviour
             AnimateCameraToTile(x, y);
             difficultySelector.currentIndex = GameManager.Instance.currentDifficulty;
             await GenerateMinesTatham(x, y);
-            
-            
+
+
         }
 
         if (!grid[x, y].IsFlagged() && !grid[x, y].IsRevealed())
@@ -493,10 +514,11 @@ public class MinesweeperGameManager : MonoBehaviour
                 Debug.Log($"[DEBUG] Calling FloodFillWithAnimation at ({x}, {y}) after mines are placed.");
                 isAnimating = true;
                 FloodFillWithAnimation(x, y);
+                SaveGameState();
             }
             else
             {
-                
+
                 grid[x, y].Reveal();
                 if (!grid[x, y].IsMine())
                 {
@@ -618,7 +640,8 @@ public class MinesweeperGameManager : MonoBehaviour
             foreach (MineTile tile in tilesToReveal)
             {
                 tileTransforms.Add(tile.transform);
-                revealActions.Add(() => {
+                revealActions.Add(() =>
+                {
                     if (!tile.IsMine())
                     {
                         revealedCount++;
@@ -630,7 +653,8 @@ public class MinesweeperGameManager : MonoBehaviour
             TileAnimationManager.Instance.AnimateTileSequence(
                 tileTransforms,
                 revealActions,
-                () => {
+                () =>
+                {
                     isAnimating = false;
                     CheckWinCondition();
                 }
@@ -654,9 +678,10 @@ public class MinesweeperGameManager : MonoBehaviour
         if (revealedCount == (width * height - mineCount))
         {
             currentState = GameState.Win;
-            
+
             togglePanel.SetActive(false);
             Debug.Log("Game Won!");
+            RemoveSavedGame();
             RevealRemainingTiles();
             gameCamera.DOOrthoSize(maxZoom, 1.5f).SetEase(Ease.OutQuad);
             CenterCameraOnBoard();
@@ -674,6 +699,7 @@ public class MinesweeperGameManager : MonoBehaviour
     {
         togglePanel.SetActive(false);
         currentState = GameState.GameOver;
+        RemoveSavedGame();
         RevealAllMines();
         gameCamera.DOOrthoSize(maxZoom, 1.5f).SetEase(Ease.OutQuad);
         CenterCameraOnBoard();
@@ -702,7 +728,7 @@ public class MinesweeperGameManager : MonoBehaviour
             }
         }
 
-        
+
     }
 
     private void RevealRemainingTiles()
@@ -748,7 +774,7 @@ public class MinesweeperGameManager : MonoBehaviour
         SetupGame(difficulty);
     }
 
-   
+
 
     public bool IsValidCoordPublic(int x, int y)
     {
@@ -850,7 +876,7 @@ public class MinesweeperGameManager : MonoBehaviour
     {
         if (currentState != GameState.Playing || firstClick || isAnimating)
         {
-            
+
             return;
         }
         InitialHintClick();
@@ -867,7 +893,7 @@ public class MinesweeperGameManager : MonoBehaviour
     //called on ad accepted
     public void OnHintButtonClicked()
     {
-        
+
         if (currentState != GameState.Playing || firstClick || isAnimating)
         {
             Debug.Log("Hint not available right now.");
@@ -886,7 +912,7 @@ public class MinesweeperGameManager : MonoBehaviour
 
     private bool PerformAdvancedHintMove()
     {
-        
+
         List<Constraint> constraints = new List<Constraint>();
         HashSet<Vector2Int> unknownSet = new HashSet<Vector2Int>();
 
@@ -901,7 +927,7 @@ public class MinesweeperGameManager : MonoBehaviour
                     int flaggedCount = 0;
                     List<Vector2Int> unknownNeighbors = new List<Vector2Int>();
 
-                    
+
                     for (int dx = -1; dx <= 1; dx++)
                     {
                         for (int dy = -1; dy <= 1; dy++)
@@ -929,7 +955,7 @@ public class MinesweeperGameManager : MonoBehaviour
                     if (unknownNeighbors.Count > 0)
                     {
                         int minesNeeded = clue - flaggedCount;
-                        
+
                         if (minesNeeded < 0)
                             continue;
 
@@ -943,11 +969,11 @@ public class MinesweeperGameManager : MonoBehaviour
             }
         }
 
-        
+
         if (unknownSet.Count == 0)
             return false;
 
-        
+
         List<Vector2Int> unknownCells = new List<Vector2Int>(unknownSet);
         Dictionary<Vector2Int, int> unknownIndices = new Dictionary<Vector2Int, int>();
         for (int i = 0; i < unknownCells.Count; i++)
@@ -955,9 +981,9 @@ public class MinesweeperGameManager : MonoBehaviour
             unknownIndices[unknownCells[i]] = i;
         }
 
-       
+
         List<bool[]> validSolutions = new List<bool[]>();
-        bool[] assignment = new bool[unknownCells.Count]; 
+        bool[] assignment = new bool[unknownCells.Count];
         BacktrackAll(0, unknownCells, unknownIndices, assignment, constraints, validSolutions);
 
         if (validSolutions.Count == 0)
@@ -1041,12 +1067,12 @@ public class MinesweeperGameManager : MonoBehaviour
             return;
         }
 
-       
+
         assignment[index] = true;
         if (CheckPartial(index, unknownCells, unknownIndices, assignment, constraints))
             BacktrackAll(index + 1, unknownCells, unknownIndices, assignment, constraints, validSolutions);
 
-        
+
         assignment[index] = false;
         if (CheckPartial(index, unknownCells, unknownIndices, assignment, constraints))
             BacktrackAll(index + 1, unknownCells, unknownIndices, assignment, constraints, validSolutions);
@@ -1123,6 +1149,171 @@ public class MinesweeperGameManager : MonoBehaviour
             this.minesNeeded = minesNeeded;
         }
     }
+
+
+
+
+
+
+    ///SAVE GAME LOGIC/////
+
+
+
+    public void SaveGameState()
+    {
+        if (currentState == GameState.Setup || currentState == GameState.GameOver || currentState == GameState.Win || isAnimating || firstClick == true)
+        {
+            // No need to save if the game is not in progress
+            return;
+        }
+
+        SavedGameState savedState = new SavedGameState
+        {
+            difficulty = gameManager.currentDifficulty,
+            elapsedTime = elapsedTime,
+            flaggedCount = flaggedCount,
+            revealedCount = revealedCount,
+            firstClick = firstClick,
+            minePositions = minePositions,
+            tileStates = new List<TileState>()
+        };
+
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                MineTile tile = grid[x, y];
+                savedState.tileStates.Add(new TileState
+                {
+                    x = x,
+                    y = y,
+                    isRevealed = tile.IsRevealed(),
+                    isFlagged = tile.IsFlagged(),
+                    isMine = tile.IsMine(),
+                    adjacentMines = tile.GetAdjacentMines()
+                });
+            }
+        }
+        Debug.Log($"Saving game with width: {width}, height: {height}");
+        string json = JsonUtility.ToJson(savedState);
+        PlayerPrefs.SetString($"SavedGame_Difficulty_{gameManager.currentDifficulty}", json);
+        PlayerPrefs.Save();
+        Debug.Log($"Saved JSON: {json}");
+        Debug.Log("game saved");
+        
+    }
+
+    public bool ResumeGame(int difficulty)
+    {
+        Debug.Log($"Loading game with width: {width}, height: {height}");
+
+        // Check if a saved game exists for the selected difficulty
+        if (!GameManager.Instance.HasSavedGame(difficulty))
+        {
+            Debug.Log("No saved game found for this difficulty.");
+            return false;
+        }
+
+        // Retrieve the saved game data
+        string json = PlayerPrefs.GetString($"SavedGame_Difficulty_{difficulty}", string.Empty);
+        Debug.Log($"Saved JSON: {json}");
+
+        // Validate JSON
+        if (string.IsNullOrEmpty(json))
+        {
+            Debug.LogError("Saved game data is empty or invalid.");
+            GameManager.Instance.RemoveSavedGame(difficulty); // Delete corrupted data
+            return false;
+        }
+
+        // Deserialize the JSON
+        SavedGameState savedState;
+        try
+        {
+            savedState = JsonUtility.FromJson<SavedGameState>(json);
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"Failed to deserialize saved game data: {e.Message}");
+            GameManager.Instance.RemoveSavedGame(difficulty); // Delete corrupted data
+            return false;
+        }
+
+        // Validate the saved game state
+        if (savedState == null)
+        {
+            Debug.LogError("Saved game state is null.");
+            GameManager.Instance.RemoveSavedGame(difficulty); // Delete corrupted data
+            return false;
+        }
+
+        // Validate difficulty
+        if (savedState.difficulty != difficulty)
+        {
+            Debug.LogError("Saved game difficulty does not match the selected difficulty.");
+            GameManager.Instance.RemoveSavedGame(difficulty); // Delete corrupted data
+            return false;
+        }
+
+        // Validate tile states
+        if (savedState.tileStates == null)
+        {
+            Debug.LogError("Saved game tile states are null.");
+            GameManager.Instance.RemoveSavedGame(difficulty); // Delete corrupted data
+            return false;
+        }
+
+        if (savedState.tileStates.Count != width * height)
+        {
+            Debug.LogError($"Saved game tile states count mismatch. Expected: {width * height}, Actual: {savedState.tileStates.Count}");
+            GameManager.Instance.RemoveSavedGame(difficulty); // Delete corrupted data
+            return false;
+        }
+
+        // If all checks pass, restore the game state
+        SetupGame(savedState.difficulty);
+
+        elapsedTime = savedState.elapsedTime;
+        flaggedCount = savedState.flaggedCount;
+        revealedCount = savedState.revealedCount;
+        firstClick = savedState.firstClick;
+        minePositions = savedState.minePositions;
+
+        foreach (TileState tileState in savedState.tileStates)
+        {
+            if (!IsValidCoord(tileState.x, tileState.y))
+            {
+                Debug.LogError($"Invalid tile coordinates in saved game: ({tileState.x}, {tileState.y})");
+                GameManager.Instance.RemoveSavedGame(difficulty); // Delete corrupted data
+                return false;
+            }
+
+            MineTile tile = grid[tileState.x, tileState.y];
+            tile.SetMine(tileState.isMine);
+            tile.SetAdjacentMines(tileState.adjacentMines);
+            if (tileState.isRevealed)
+            {
+                tile.RevealWithoutAnimation();
+            }
+            if (tileState.isFlagged)
+            {
+                tile.ToggleFlag();
+            }
+        }
+        hintButton.interactable= true;
+        UpdateTimerUI();
+        UpdateMineCounterUI();
+        currentState = GameState.Playing;
+        Debug.Log("Game successfully resumed.");
+        return true;
+    }
+
+    public void RemoveSavedGame()
+    {
+        PlayerPrefs.DeleteKey($"SavedGame_Difficulty_{GameManager.Instance.currentDifficulty}");
+        PlayerPrefs.Save();
+    }
+
 }
 
 

@@ -22,6 +22,8 @@ public class DifficultySelectorTMP : MonoBehaviour
 
     public int currentIndex = 0;
 
+    public ResumeButton resumeScript;
+
     private void Start()
     {
         // Provide default difficulties if none set
@@ -39,6 +41,12 @@ public class DifficultySelectorTMP : MonoBehaviour
         nextText.rectTransform.position = rightPos.position;
 
         UpdateButtonInteractivity();
+
+        if(resumeScript != null) 
+        { 
+            resumeScript.OnDifficultyChanged();
+            
+        }
     }
 
     public void OnClickNext()
@@ -124,4 +132,7 @@ public class DifficultySelectorTMP : MonoBehaviour
         // Disable the right button if we're at the last difficulty
         rightButton.gameObject.SetActive(currentIndex < difficulties.Count - 1); 
     }
+
+
+
 }

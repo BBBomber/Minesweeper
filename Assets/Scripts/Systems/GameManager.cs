@@ -8,6 +8,7 @@ public class GameManager : MonoBehaviour
     public int currentDifficulty = 0;
 
     private MinesweeperGameManager _minesweeperManager;
+    public bool shouldResume = false;
 
     //ads
 #if UNITY_ANDROID
@@ -19,6 +20,7 @@ public class GameManager : MonoBehaviour
 #endif
 
     private RewardedAd _rewardedAd;
+    
 
     private void Awake()
     {
@@ -32,7 +34,8 @@ public class GameManager : MonoBehaviour
             Destroy(gameObject);
         }
 
-        MobileAds.Initialize(initStatus => {
+        MobileAds.Initialize(initStatus =>
+        {
             // Initialization callback
             Debug.Log("Google Mobile Ads initialized.");
         });
@@ -53,11 +56,19 @@ public class GameManager : MonoBehaviour
         SceneManager.LoadScene(sceneIndex);
     }
 
-
+    private void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.Q))
+        {
+            PlayerPrefs.DeleteAll();
+            PlayerPrefs.Save();
+            Debug.Log("All PlayerPrefs data deleted.");
+        }
+    }
 
 
     //ads
-
+    #region ads
     private void LoadRewardedAd()
     {
         // Destroy any existing ad before loading a new one
@@ -181,6 +192,48 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    #endregion
 
 
+    #region SaveGame
+
+    public void ShouldResumeGame()
+    {
+        shouldResume = true;
+    }
+
+
+    private void OnApplicationPause(bool pauseStatus)
+    {
+        if (pauseStatus)
+        {
+            if (_minesweeperManager != null)
+            {
+                _minesweeperManager.SaveGameState();
+            }
+        }
+    }
+
+    private void OnApplicationQuit()
+    {
+        if(_minesweeperManager != null)
+        {
+            _minesweeperManager.SaveGameState();
+        }
+        
+    }
+
+    public void RemoveSavedGame(int difficulty)
+    {
+        PlayerPrefs.DeleteKey($"SavedGame_Difficulty_{difficulty}");
+        PlayerPrefs.Save();
+    }
+
+
+    public bool HasSavedGame(int difficulty)
+    {
+        return PlayerPrefs.HasKey($"SavedGame_Difficulty_{difficulty}");
+    }
+
+    #endregion
 }
