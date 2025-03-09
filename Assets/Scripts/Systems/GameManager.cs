@@ -69,8 +69,22 @@ public class GameManager : MonoBehaviour
 
         Debug.Log("Loading a new rewarded ad...");
 
-        // Create an empty request
-        AdRequest adRequest = new AdRequest();
+        // Create an ad request using the correct method
+        AdRequest adRequest = new AdRequest
+        {
+            Keywords = null, // Optional: You can set targeting keywords
+            Extras = null, // Optional: Add extra targeting data
+            MediationExtras = null // Optional: Mediation-specific options
+        };
+
+        // Configure COPPA (Child-Directed Treatment)
+        RequestConfiguration requestConfiguration = new RequestConfiguration
+        {
+            TagForChildDirectedTreatment = TagForChildDirectedTreatment.True, // Ensure child-friendly ads
+            MaxAdContentRating = MaxAdContentRating.G // Restrict to G-rated ads
+        };
+
+        MobileAds.SetRequestConfiguration(requestConfiguration);
 
         // Load the rewarded ad
         RewardedAd.Load(_rewardedAdUnitId, adRequest, (RewardedAd ad, LoadAdError error) =>
@@ -85,7 +99,7 @@ public class GameManager : MonoBehaviour
 
             _rewardedAd = ad;
 
-            // Register event handlers so we can reload after close, track impressions, etc.
+            // Register event handlers
             RegisterEventHandlers(_rewardedAd);
         });
     }

@@ -848,6 +848,11 @@ public class MinesweeperGameManager : MonoBehaviour
 
     public void OnHintButtonPress()
     {
+        if (currentState != GameState.Playing || firstClick || isAnimating)
+        {
+            
+            return;
+        }
         InitialHintClick();
     }
 
