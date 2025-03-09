@@ -98,6 +98,7 @@ public class MinesweeperGameManager : MonoBehaviour
 
     //ad panel
     [SerializeField] private GameObject ADPanel;
+    private bool remakingBoard = false;
 
     void Start()
     {
@@ -498,8 +499,7 @@ public class MinesweeperGameManager : MonoBehaviour
 
         if (firstClick)
         {
-            firstClick = false;
-            hintButton.interactable = true;
+            
             AnimateCameraToTile(x, y);
             difficultySelector.currentIndex = GameManager.Instance.currentDifficulty;
             await GenerateMinesTatham(x, y);
@@ -512,9 +512,21 @@ public class MinesweeperGameManager : MonoBehaviour
             if (grid[x, y].GetAdjacentMines() == 0 && !grid[x, y].IsMine())
             {
                 Debug.Log($"[DEBUG] Calling FloodFillWithAnimation at ({x}, {y}) after mines are placed.");
+                
+                if(!firstClick)
+                {
+                    SaveGameState();
+                }
+
                 isAnimating = true;
                 FloodFillWithAnimation(x, y);
-                SaveGameState();
+                if(firstClick) 
+                {
+                    firstClick = false;
+                    hintButton.interactable = true;
+                }
+                
+                
             }
             else
             {
@@ -748,8 +760,16 @@ public class MinesweeperGameManager : MonoBehaviour
 
     public void OnTileFlagged(bool isFlagged)
     {
-        flaggedCount += isFlagged ? 1 : -1;
-        UpdateMineCounterUI();
+        if(remakingBoard)
+        {
+
+        }
+        else
+        {
+            flaggedCount += isFlagged ? 1 : -1;
+            UpdateMineCounterUI();
+        }
+        
     }
 
     public bool IsGameOver()
@@ -1205,6 +1225,7 @@ public class MinesweeperGameManager : MonoBehaviour
 
     public bool ResumeGame(int difficulty)
     {
+        remakingBoard= true;
         Debug.Log($"Loading game with width: {width}, height: {height}");
 
         // Check if a saved game exists for the selected difficulty
@@ -1302,9 +1323,10 @@ public class MinesweeperGameManager : MonoBehaviour
         }
         hintButton.interactable= true;
         UpdateTimerUI();
-        UpdateMineCounterUI();
         currentState = GameState.Playing;
         Debug.Log("Game successfully resumed.");
+        remakingBoard= false;
+        UpdateMineCounterUI();
         return true;
     }
 
