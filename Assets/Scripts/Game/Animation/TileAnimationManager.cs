@@ -5,11 +5,11 @@ using UnityEngine;
 public class TileAnimationManager : MonoBehaviour
 {
     [Header("Animation Settings")]
-    [SerializeField] private float scaleDownDuration = 0.15f;
-    [SerializeField] private float scaleUpDuration = 0.15f;
+    [SerializeField] private float scaleDownDuration = 0.09f;
+    [SerializeField] private float scaleUpDuration = 0.09f;
     [SerializeField] private float minScale = 0.1f;
-    [SerializeField] private float cascadeDelay = 0.02f;
-    [SerializeField] private float maxCascadeDelay = 0.1f;
+    [SerializeField] private float cascadeDelay = 0.008f;
+    [SerializeField] private float maxCascadeDelay = 0.05f;
     [SerializeField] private AnimationCurve scaleDownCurve = AnimationCurve.EaseInOut(0, 1, 1, 0);
     [SerializeField] private AnimationCurve scaleUpCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
 
@@ -44,7 +44,6 @@ public class TileAnimationManager : MonoBehaviour
         }
     }
 
-
     // Animate a single tile
     public void AnimateTileReveal(Transform tileTransform, System.Action onScaleDownComplete, System.Action onAnimationComplete = null)
     {
@@ -74,7 +73,6 @@ public class TileAnimationManager : MonoBehaviour
         }
         tileTransform.localScale = minScaleVec;
 
-        // Perform action when scale down is complete (change sprite)
         onScaleDownComplete?.Invoke();
 
         // Scale up
@@ -89,45 +87,46 @@ public class TileAnimationManager : MonoBehaviour
         }
         tileTransform.localScale = originalScale;
 
-        // Animation complete
         onAnimationComplete?.Invoke();
     }
 
     private IEnumerator TileSequenceAnimation(List<Transform> tileTransforms, List<System.Action> onScaleDownComplete, System.Action onAllComplete)
     {
-        List<Coroutine> runningAnimations = new List<Coroutine>();
-
-        // Calculate dynamic delay based on distance from first tile
-        if (tileTransforms.Count > 0)
+        if (tileTransforms.Count == 0)
         {
-            Vector3 firstTilePos = tileTransforms[0].position;
-
-            // Start all animations with calculated delays
-            for (int i = 0; i < tileTransforms.Count; i++)
-            {
-                Transform tile = tileTransforms[i];
-                float distance = Vector3.Distance(firstTilePos, tile.position);
-
-                // Dynamic delay based on distance (clamped to maxCascadeDelay)
-                float delay = Mathf.Min(distance * cascadeDelay, maxCascadeDelay);
-
-                int index = i; // Capture the correct index for the lambda
-                yield return new WaitForSeconds(delay);
-
-                runningAnimations.Add(StartCoroutine(TileRevealAnimation(
-                    tile,
-                    () => { if (index < onScaleDownComplete.Count) onScaleDownComplete[index]?.Invoke(); },
-                    null
-                )));
-            }
+            onAllComplete?.Invoke();
+            yield break;
         }
 
-        // Wait for all animations to complete
-        foreach (var anim in runningAnimations)
+        Vector3 firstTilePos = tileTransforms[0].position;
+        float maxDelay = 0f;
+
+        // Launch every tile immediately as its own delayed coroutine
+        for (int i = 0; i < tileTransforms.Count; i++)
         {
-            yield return anim;
+            float distance = Vector3.Distance(firstTilePos, tileTransforms[i].position);
+            float delay = Mathf.Min(distance * cascadeDelay, maxCascadeDelay);
+            if (delay > maxDelay) maxDelay = delay;
+
+            int index = i;
+            StartCoroutine(DelayedTileReveal(
+                delay,
+                tileTransforms[index],
+                () => { if (index < onScaleDownComplete.Count) onScaleDownComplete[index]?.Invoke(); }
+            ));
         }
+
+        // Wait for all tiles (furthest delay + full animation duration)
+        yield return new WaitForSeconds(maxDelay + scaleDownDuration + scaleUpDuration);
 
         onAllComplete?.Invoke();
+    }
+
+    private IEnumerator DelayedTileReveal(float delay, Transform tileTransform, System.Action onScaleDownComplete)
+    {
+        if (delay > 0f)
+            yield return new WaitForSeconds(delay);
+
+        yield return StartCoroutine(TileRevealAnimation(tileTransform, onScaleDownComplete, null));
     }
 }

@@ -111,7 +111,7 @@ public class MinesweeperGameManager : MonoBehaviour
         difficulty = Mathf.Clamp(difficulty, 0, 3);
         width = difficultyWidths[difficulty];
         height = difficultyHeights[difficulty];
-        
+
         // Check if the player has seen the instructions before.
         if (PlayerPrefs.GetInt("HasSeenInstructions", 0) == 0)
         {
@@ -215,7 +215,7 @@ public class MinesweeperGameManager : MonoBehaviour
             if (isMousePanning)
             {
                 Vector3 direction = mousePanStart - gameCamera.ScreenToWorldPoint(Input.mousePosition);
-                Vector3 newPosition = gameCamera.transform.position + direction * mousePanSpeed * Time.deltaTime;
+                Vector3 newPosition = gameCamera.transform.position + direction;
                 newPosition = LimitWithinBoundsWithOvershoot(newPosition);
                 gameCamera.transform.position = newPosition;
                 mousePanStart = gameCamera.ScreenToWorldPoint(Input.mousePosition);
@@ -237,7 +237,7 @@ public class MinesweeperGameManager : MonoBehaviour
             if (isMousePanning)
             {
                 Vector3 direction = mousePanStart - gameCamera.ScreenToWorldPoint(Input.mousePosition);
-                Vector3 newPosition = gameCamera.transform.position + direction * mousePanSpeed * Time.deltaTime;
+                Vector3 newPosition = gameCamera.transform.position + direction;
                 newPosition = LimitWithinBoundsWithOvershoot(newPosition);
                 gameCamera.transform.position = newPosition;
                 mousePanStart = gameCamera.ScreenToWorldPoint(Input.mousePosition);
@@ -315,12 +315,12 @@ public class MinesweeperGameManager : MonoBehaviour
                     // Move the camera based on the touch movement
                     Vector3 currentTouchWorldPos = gameCamera.ScreenToWorldPoint(touch.position);
                     Vector3 direction = touchStart - currentTouchWorldPos;
-                    Vector3 newPosition = gameCamera.transform.position + direction * panSpeed * Time.deltaTime;
+                    Vector3 newPosition = gameCamera.transform.position + direction;
                     newPosition = LimitWithinBoundsWithOvershoot(newPosition);
                     gameCamera.transform.position = newPosition;
 
                     // Update the touch start for the next frame
-                    touchStart = currentTouchWorldPos;
+                    touchStart = gameCamera.ScreenToWorldPoint(touch.position);
                 }
             }
             else if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
@@ -499,7 +499,7 @@ public class MinesweeperGameManager : MonoBehaviour
 
         if (firstClick)
         {
-            
+
             AnimateCameraToTile(x, y);
             difficultySelector.currentIndex = GameManager.Instance.currentDifficulty;
             await GenerateMinesTatham(x, y);
@@ -512,21 +512,21 @@ public class MinesweeperGameManager : MonoBehaviour
             if (grid[x, y].GetAdjacentMines() == 0 && !grid[x, y].IsMine())
             {
                 Debug.Log($"[DEBUG] Calling FloodFillWithAnimation at ({x}, {y}) after mines are placed.");
-                
-                if(!firstClick)
+
+                if (!firstClick)
                 {
                     SaveGameState();
                 }
 
                 isAnimating = true;
                 FloodFillWithAnimation(x, y);
-                if(firstClick) 
+                if (firstClick)
                 {
                     firstClick = false;
                     hintButton.interactable = true;
                 }
-                
-                
+
+
             }
             else
             {
@@ -760,7 +760,7 @@ public class MinesweeperGameManager : MonoBehaviour
 
     public void OnTileFlagged(bool isFlagged)
     {
-        if(remakingBoard)
+        if (remakingBoard)
         {
 
         }
@@ -769,7 +769,7 @@ public class MinesweeperGameManager : MonoBehaviour
             flaggedCount += isFlagged ? 1 : -1;
             UpdateMineCounterUI();
         }
-        
+
     }
 
     public bool IsGameOver()
@@ -905,8 +905,7 @@ public class MinesweeperGameManager : MonoBehaviour
     public void InitialHintClick() //actual on button click
     {
         ADPanel.SetActive(false);
-        GameManager.Instance.SetMinesweeperManagerReference(this);
-        GameManager.Instance.OnHintButtonClicked();
+        OnHintButtonClicked();
     }
 
     //cslled from game manager
@@ -1031,7 +1030,7 @@ public class MinesweeperGameManager : MonoBehaviour
                 if (alwaysMine)
                 {
                     // The deduction forces this cell to be a mine.
-                    // If it isn’t actually a mine, then the flags must be off.
+                    // If it isn't actually a mine, then the flags must be off.
                     if (!hintTile.IsMine())
                     {
                         ShowErrorPopup("Move could not be deduced.\n\nIt appears some flags might be placed incorrectly.");
@@ -1220,12 +1219,12 @@ public class MinesweeperGameManager : MonoBehaviour
         PlayerPrefs.Save();
         Debug.Log($"Saved JSON: {json}");
         Debug.Log("game saved");
-        
+
     }
 
     public bool ResumeGame(int difficulty)
     {
-        remakingBoard= true;
+        remakingBoard = true;
         Debug.Log($"Loading game with width: {width}, height: {height}");
 
         // Check if a saved game exists for the selected difficulty
@@ -1321,11 +1320,11 @@ public class MinesweeperGameManager : MonoBehaviour
                 tile.ToggleFlag();
             }
         }
-        hintButton.interactable= true;
+        hintButton.interactable = true;
         UpdateTimerUI();
         currentState = GameState.Playing;
         Debug.Log("Game successfully resumed.");
-        remakingBoard= false;
+        remakingBoard = false;
         UpdateMineCounterUI();
         return true;
     }
@@ -1337,6 +1336,3 @@ public class MinesweeperGameManager : MonoBehaviour
     }
 
 }
-
-
-
